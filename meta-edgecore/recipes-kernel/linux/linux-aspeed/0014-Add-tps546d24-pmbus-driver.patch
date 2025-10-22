@@ -1,0 +1,60 @@
+From 50a9af39b98b1c6aabf06d5efce7eb729688ea75 Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@accton.com>
+Date: Mon, 15 Apr 2024 11:42:55 +0800
+Subject: [PATCH] Add tps546d24 pmbus driver
+
+---
+ drivers/hwmon/pmbus/Kconfig  | 9 +++++++++
+ drivers/hwmon/pmbus/Makefile | 1 +
+ drivers/hwmon/pmbus/pmbus_core.c | 3 +++
+ 3 files changed, 12 insertions(+)
+
+diff --git a/drivers/hwmon/pmbus/Kconfig b/drivers/hwmon/pmbus/Kconfig
+index dff75d0abfaf..abea597344cc 100644
+--- a/drivers/hwmon/pmbus/Kconfig
++++ b/drivers/hwmon/pmbus/Kconfig
+@@ -206,6 +206,15 @@ config SENSORS_TPS53679
+ 	  This driver can also be built as a module. If so, the module will
+ 	  be called tps53679.
+ 
++config SENSORS_TPS546D24
++	tristate "TI TPS546D24"
++	help
++	  If you say yes here you get hardware monitoring support for TI
++	  TPS546D24.
++
++	  This driver can also be built as a module. If so, the module will
++	  be called tps546d24.
++
+ config SENSORS_UCD9000
+ 	tristate "TI UCD90120, UCD90124, UCD90160, UCD90320, UCD9090, UCD90910"
+ 	help
+diff --git a/drivers/hwmon/pmbus/Makefile b/drivers/hwmon/pmbus/Makefile
+index 8c121d6d2922..1b638ea16bd8 100644
+--- a/drivers/hwmon/pmbus/Makefile
++++ b/drivers/hwmon/pmbus/Makefile
+@@ -23,6 +23,7 @@ obj-$(CONFIG_SENSORS_MAX8688)	+= max8688.o
+ obj-$(CONFIG_SENSORS_PXE1610)	+= pxe1610.o
+ obj-$(CONFIG_SENSORS_TPS40422)	+= tps40422.o
+ obj-$(CONFIG_SENSORS_TPS53679)	+= tps53679.o
++obj-$(CONFIG_SENSORS_TPS546D24)	+= tps546d24.o
+ obj-$(CONFIG_SENSORS_UCD9000)	+= ucd9000.o
+ obj-$(CONFIG_SENSORS_UCD9200)	+= ucd9200.o
+ obj-$(CONFIG_SENSORS_ZL6100)	+= zl6100.o
+diff --git a/drivers/hwmon/pmbus/pmbus_core.c b/drivers/hwmon/pmbus/pmbus_core.c
+index 695c5aee7e06..e4f0d6abe2e7 100644
+--- a/drivers/hwmon/pmbus/pmbus_core.c
++++ b/drivers/hwmon/pmbus/pmbus_core.c
+@@ -2099,6 +2099,9 @@ static int pmbus_identify_common(struct i2c_client *client,
+ 		 */
+ 		switch (vout_mode >> 5) {
+ 		case 0:	/* linear mode      */
++#ifdef CONFIG_SENSORS_TPS546D24
++		case 4: /* tps546d24 chip, vout_mode highest bit is 1??? */
++#endif
+ 			if (data->info->format[PSC_VOLTAGE_OUT] != linear)
+ 				return -ENODEV;
+ 
+-- 
+2.17.1
+

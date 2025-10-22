@@ -1,0 +1,50 @@
+From 32806a8a1ba4b0a8f596d8f1fd930bc53f8ea6e0 Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@accton.com>
+Date: Tue, 21 Oct 2025 14:54:13 +0800
+Subject: [PATCH] work around gls error
+
+---
+ drivers/net/phy/ncsi.c | 17 +++++++++++++++--
+ 1 file changed, 15 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/phy/ncsi.c b/drivers/net/phy/ncsi.c
+index 4e46107767..f96c8f30e9 100644
+--- a/drivers/net/phy/ncsi.c
++++ b/drivers/net/phy/ncsi.c
+@@ -341,8 +341,13 @@ static void ncsi_rsp_gls(struct ncsi_rsp_pkt *pkt)
+ 		return;
+ 	}
+ 
++	/*
++	  because of compatibility issue, i210 ncsi ctrl will reply GLS with error
++	  we ignore this error for work around
++	  kernel ncsi driver meet the same issue, too
++	*/
+ 	ncsi_priv->packages[np].channels[nc].has_link =
+-					!!(get_unaligned_be32(&gls->status));
++					/* !!(get_unaligned_be32(&gls->status)) */ true;
+ 
+ 	if (ncsi_priv->state == NCSI_PROBE_CHANNEL)
+ 		ncsi_send_command(np, nc, NCSI_PKT_CMD_GVI, NULL, 0, true);
+@@ -675,9 +680,17 @@ void ncsi_receive(struct ethernet_hdr *et, struct ip_udp_hdr *ip,
+ 		handler = ncsi_rsp_cis;
+ 		break;
+ 	case NCSI_PKT_RSP_GLS:
+-		payload = 16;
++		/*
++		  because of compatibility issue, i210 ncsi ctrl will reply GLS with error
++		  we ignore this error for work around
++		  kernel ncsi driver meet the same issue, too
++		*/
++/*		payload = 16;
+ 		handler = ncsi_rsp_gls;
+ 		break;
++*/
++		ncsi_rsp_gls(pkt);
++		goto out;
+ 	case NCSI_PKT_RSP_GVI:
+ 		payload = 40;
+ 		handler = ncsi_rsp_gvi;
+-- 
+2.17.1
+

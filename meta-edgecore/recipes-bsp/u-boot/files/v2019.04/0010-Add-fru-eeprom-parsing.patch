@@ -1,0 +1,40 @@
+From e74b5391aba983ed4773a1c2a2bf88c82eef98d4 Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@accton.com>
+Date: Tue, 21 Oct 2025 14:20:46 +0800
+Subject: [PATCH] Add fru eeprom parsing
+
+---
+ arch/arm/mach-aspeed/ast2600/Kconfig  | 6 ++++++
+ arch/arm/mach-aspeed/ast2600/Makefile | 1 +
+ 2 files changed, 7 insertions(+)
+
+diff --git a/arch/arm/mach-aspeed/ast2600/Kconfig b/arch/arm/mach-aspeed/ast2600/Kconfig
+index 821d900f19..5b8cd46b75 100644
+--- a/arch/arm/mach-aspeed/ast2600/Kconfig
++++ b/arch/arm/mach-aspeed/ast2600/Kconfig
+@@ -9,6 +9,12 @@ config FMC_DUAL_BOOT
+ 	help
+ 	  enable/disable fmc watchdog 2 dual boot feature.
+ 
++config EEPROM_FRU_PARSING
++	bool EEPROM_FRU_PARSING
++	default n
++	help
++	  enable/disable eeprom fru parsing feature.
++
+ choice
+ 	prompt "AST2600 board select"
+ 	depends on ASPEED_AST2600
+diff --git a/arch/arm/mach-aspeed/ast2600/Makefile b/arch/arm/mach-aspeed/ast2600/Makefile
+index a5421d070e..70ea1f958e 100644
+--- a/arch/arm/mach-aspeed/ast2600/Makefile
++++ b/arch/arm/mach-aspeed/ast2600/Makefile
+@@ -1,4 +1,5 @@
+ obj-y   += platform.o board_common.o scu_info.o utils.o cache.o
+ obj-$(CONFIG_SECURE_BOOT) += crypto.o aspeed_verify.o
+ obj-$(CONFIG_FMC_DUAL_BOOT) += fmc_dual_boot.o
++obj-$(CONFIG_EEPROM_FRU_PARSING) += fru_parsing.o
+ obj-$(CONFIG_SPL_BUILD) += spl.o
+-- 
+2.17.1
+

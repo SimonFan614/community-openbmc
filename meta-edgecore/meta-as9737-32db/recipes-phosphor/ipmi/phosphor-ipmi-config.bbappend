@@ -1,0 +1,1 @@
+FILESEXTRAPATHS_prepend_as9737-32db := "${THISDIR}/${PN}:"

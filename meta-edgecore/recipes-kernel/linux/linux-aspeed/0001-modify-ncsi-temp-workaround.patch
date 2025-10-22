@@ -1,0 +1,544 @@
+diff --git a/net/ncsi/Kconfig b/net/ncsi/Kconfig
+index 2f1e5756c03a..7f2b46108a24 100644
+--- a/net/ncsi/Kconfig
++++ b/net/ncsi/Kconfig
+@@ -1,4 +1,3 @@
+-# SPDX-License-Identifier: GPL-2.0-only
+ #
+ # Configuration for NCSI support
+ #
+diff --git a/net/ncsi/Makefile b/net/ncsi/Makefile
+index e205f3bf1e42..436ef68331f2 100644
+--- a/net/ncsi/Makefile
++++ b/net/ncsi/Makefile
+@@ -1,4 +1,3 @@
+-# SPDX-License-Identifier: GPL-2.0-only
+ #
+ # Makefile for NCSI API
+ #
+diff --git a/net/ncsi/internal.h b/net/ncsi/internal.h
+index ad3fd7f1da75..87505600dbb2 100644
+--- a/net/ncsi/internal.h
++++ b/net/ncsi/internal.h
+@@ -1,6 +1,10 @@
+-/* SPDX-License-Identifier: GPL-2.0-or-later */
+ /*
+  * Copyright Gavin Shan, IBM Corporation 2016.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
+  */
+ 
+ #ifndef __NCSI_INTERNAL_H__
+@@ -264,7 +268,9 @@ enum {
+ 	ncsi_dev_state_config_ev,
+ 	ncsi_dev_state_config_sma,
+ 	ncsi_dev_state_config_ebf,
+-	ncsi_dev_state_config_dgmf,
++#if IS_ENABLED(CONFIG_IPV6)
++	ncsi_dev_state_config_egmf,
++#endif
+ 	ncsi_dev_state_config_ecnt,
+ 	ncsi_dev_state_config_ec,
+ 	ncsi_dev_state_config_ae,
+@@ -293,6 +299,9 @@ struct ncsi_dev_priv {
+ #define NCSI_DEV_RESET		8            /* Reset state of NC          */
+ 	unsigned int        gma_flag;        /* OEM GMA flag               */
+ 	spinlock_t          lock;            /* Protect the NCSI device    */
++#if IS_ENABLED(CONFIG_IPV6)
++	unsigned int        inet6_addr_num;  /* Number of IPv6 addresses   */
++#endif
+ 	unsigned int        package_probe_id;/* Current ID during probe    */
+ 	unsigned int        package_num;     /* Number of packages         */
+ 	struct list_head    packages;        /* List of packages           */
+diff --git a/net/ncsi/ncsi-aen.c b/net/ncsi/ncsi-aen.c
+index b635c194f0a8..26d67e27551f 100644
+--- a/net/ncsi/ncsi-aen.c
++++ b/net/ncsi/ncsi-aen.c
+@@ -1,6 +1,10 @@
+-// SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+  * Copyright Gavin Shan, IBM Corporation 2016.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
+  */
+ 
+ #include <linux/module.h>
+diff --git a/net/ncsi/ncsi-cmd.c b/net/ncsi/ncsi-cmd.c
+index 0187e65176c0..356af474e43c 100644
+--- a/net/ncsi/ncsi-cmd.c
++++ b/net/ncsi/ncsi-cmd.c
+@@ -1,6 +1,10 @@
+-// SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+  * Copyright Gavin Shan, IBM Corporation 2016.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
+  */
+ 
+ #include <linux/module.h>
+@@ -54,7 +58,7 @@ static void ncsi_cmd_build_header(struct ncsi_pkt_hdr *h,
+ 	checksum = ncsi_calculate_checksum((unsigned char *)h,
+ 					   sizeof(*h) + nca->payload);
+ 	pchecksum = (__be32 *)((void *)h + sizeof(struct ncsi_pkt_hdr) +
+-		    ALIGN(nca->payload, 4));
++		    nca->payload);
+ 	*pchecksum = htonl(checksum);
+ }
+ 
+@@ -309,21 +313,14 @@ static struct ncsi_request *ncsi_alloc_command(struct ncsi_cmd_arg *nca)
+ 
+ int ncsi_xmit_cmd(struct ncsi_cmd_arg *nca)
+ {
+-	struct ncsi_cmd_handler *nch = NULL;
+ 	struct ncsi_request *nr;
+-	unsigned char type;
+ 	struct ethhdr *eh;
++	struct ncsi_cmd_handler *nch = NULL;
+ 	int i, ret;
+ 
+-	/* Use OEM generic handler for Netlink request */
+-	if (nca->req_flags == NCSI_REQ_FLAG_NETLINK_DRIVEN)
+-		type = NCSI_PKT_CMD_OEM;
+-	else
+-		type = nca->type;
+-
+ 	/* Search for the handler */
+ 	for (i = 0; i < ARRAY_SIZE(ncsi_cmd_handlers); i++) {
+-		if (ncsi_cmd_handlers[i].type == type) {
++		if (ncsi_cmd_handlers[i].type == nca->type) {
+ 			if (ncsi_cmd_handlers[i].handler)
+ 				nch = &ncsi_cmd_handlers[i];
+ 			else
+diff --git a/net/ncsi/ncsi-manage.c b/net/ncsi/ncsi-manage.c
+index 70fe02697544..531b6a6cdea0 100644
+--- a/net/ncsi/ncsi-manage.c
++++ b/net/ncsi/ncsi-manage.c
+@@ -1,6 +1,10 @@
+-// SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+  * Copyright Gavin Shan, IBM Corporation 2016.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
+  */
+ 
+ #include <linux/module.h>
+@@ -14,6 +18,7 @@
+ #include <net/sock.h>
+ #include <net/addrconf.h>
+ #include <net/ipv6.h>
++#include <net/if_inet6.h>
+ #include <net/genetlink.h>
+ 
+ #include "internal.h"
+@@ -129,9 +134,13 @@ static void ncsi_channel_monitor(struct timer_list *t)
+ 	case NCSI_CHANNEL_MONITOR_WAIT ... NCSI_CHANNEL_MONITOR_WAIT_MAX:
+ 		break;
+ 	default:
+-		netdev_err(ndp->ndev.dev, "NCSI Channel %d timed out!\n",
+-			   nc->id);
+-		ncsi_report_link(ndp, true);
++/*		netdev_err(ndp->ndev.dev, "NCSI Channel %d timed out!\n",
++			   nc->id);*/
++	spin_lock_irqsave(&nc->lock, flags);
++	nc->monitor.state=NCSI_CHANNEL_MONITOR_START;
++	spin_unlock_irqrestore(&nc->lock, flags);
++	mod_timer(&nc->monitor.timer, jiffies + HZ);
++/*		ncsi_report_link(ndp, true);
+ 		ndp->flags |= NCSI_DEV_RESHUFFLE;
+ 
+ 		ncsi_stop_channel_monitor(nc);
+@@ -146,7 +155,7 @@ static void ncsi_channel_monitor(struct timer_list *t)
+ 		nc->state = NCSI_CHANNEL_ACTIVE;
+ 		list_add_tail_rcu(&nc->link, &ndp->channel_queue);
+ 		spin_unlock_irqrestore(&ndp->lock, flags);
+-		ncsi_process_next_channel(ndp);
++		ncsi_process_next_channel(ndp);*/
+ 		return;
+ 	}
+ 
+@@ -977,7 +986,9 @@ static void ncsi_configure_channel(struct ncsi_dev_priv *ndp)
+ 	case ncsi_dev_state_config_ev:
+ 	case ncsi_dev_state_config_sma:
+ 	case ncsi_dev_state_config_ebf:
+-	case ncsi_dev_state_config_dgmf:
++#if IS_ENABLED(CONFIG_IPV6)
++	case ncsi_dev_state_config_egmf:
++#endif
+ 	case ncsi_dev_state_config_ecnt:
+ 	case ncsi_dev_state_config_ec:
+ 	case ncsi_dev_state_config_ae:
+@@ -1030,23 +1041,23 @@ static void ncsi_configure_channel(struct ncsi_dev_priv *ndp)
+ 		} else if (nd->state == ncsi_dev_state_config_ebf) {
+ 			nca.type = NCSI_PKT_CMD_EBF;
+ 			nca.dwords[0] = nc->caps[NCSI_CAP_BC].cap;
+-			/* if multicast global filtering is supported then
+-			 * disable it so that all multicast packet will be
+-			 * forwarded to management controller
+-			 */
+-			if (nc->caps[NCSI_CAP_GENERIC].cap &
+-			    NCSI_CAP_GENERIC_MC)
+-				nd->state = ncsi_dev_state_config_dgmf;
+-			else if (ncsi_channel_is_tx(ndp, nc))
++			if (ncsi_channel_is_tx(ndp, nc))
+ 				nd->state = ncsi_dev_state_config_ecnt;
+ 			else
+ 				nd->state = ncsi_dev_state_config_ec;
+-		} else if (nd->state == ncsi_dev_state_config_dgmf) {
+-			nca.type = NCSI_PKT_CMD_DGMF;
++#if IS_ENABLED(CONFIG_IPV6)
++			if (ndp->inet6_addr_num > 0 &&
++			    (nc->caps[NCSI_CAP_GENERIC].cap &
++			     NCSI_CAP_GENERIC_MC))
++				nd->state = ncsi_dev_state_config_egmf;
++		} else if (nd->state == ncsi_dev_state_config_egmf) {
++			nca.type = NCSI_PKT_CMD_EGMF;
++			nca.dwords[0] = nc->caps[NCSI_CAP_MC].cap;
+ 			if (ncsi_channel_is_tx(ndp, nc))
+ 				nd->state = ncsi_dev_state_config_ecnt;
+ 			else
+ 				nd->state = ncsi_dev_state_config_ec;
++#endif /* CONFIG_IPV6 */
+ 		} else if (nd->state == ncsi_dev_state_config_ecnt) {
+ 			if (np->preferred_channel &&
+ 			    nc != np->preferred_channel)
+@@ -1480,6 +1491,70 @@ int ncsi_process_next_channel(struct ncsi_dev_priv *ndp)
+ 	return -ENODEV;
+ }
+ 
++#if IS_ENABLED(CONFIG_IPV6)
++static int ncsi_inet6addr_event(struct notifier_block *this,
++				unsigned long event, void *data)
++{
++	struct inet6_ifaddr *ifa = data;
++	struct net_device *dev = ifa->idev->dev;
++	struct ncsi_dev *nd = ncsi_find_dev(dev);
++	struct ncsi_dev_priv *ndp = nd ? TO_NCSI_DEV_PRIV(nd) : NULL;
++	struct ncsi_package *np;
++	struct ncsi_channel *nc;
++	struct ncsi_cmd_arg nca;
++	bool action;
++	int ret;
++
++	if (!ndp || (ipv6_addr_type(&ifa->addr) &
++	    (IPV6_ADDR_LINKLOCAL | IPV6_ADDR_LOOPBACK)))
++		return NOTIFY_OK;
++
++	switch (event) {
++	case NETDEV_UP:
++		action = (++ndp->inet6_addr_num) == 1;
++		nca.type = NCSI_PKT_CMD_EGMF;
++		break;
++	case NETDEV_DOWN:
++		action = (--ndp->inet6_addr_num == 0);
++		nca.type = NCSI_PKT_CMD_DGMF;
++		break;
++	default:
++		return NOTIFY_OK;
++	}
++
++	/* We might not have active channel or packages. The IPv6
++	 * required multicast will be enabled when active channel
++	 * or packages are chosen.
++	 */
++	np = ndp->active_package;
++	nc = ndp->active_channel;
++	if (!action || !np || !nc)
++		return NOTIFY_OK;
++
++	/* We needn't enable or disable it if the function isn't supported */
++	if (!(nc->caps[NCSI_CAP_GENERIC].cap & NCSI_CAP_GENERIC_MC))
++		return NOTIFY_OK;
++
++	nca.ndp = ndp;
++	nca.req_flags = 0;
++	nca.package = np->id;
++	nca.channel = nc->id;
++	nca.dwords[0] = nc->caps[NCSI_CAP_MC].cap;
++	ret = ncsi_xmit_cmd(&nca);
++	if (ret) {
++		netdev_warn(dev, "Fail to %s global multicast filter (%d)\n",
++			    (event == NETDEV_UP) ? "enable" : "disable", ret);
++		return NOTIFY_DONE;
++	}
++
++	return NOTIFY_OK;
++}
++
++static struct notifier_block ncsi_inet6addr_notifier = {
++	.notifier_call = ncsi_inet6addr_event,
++};
++#endif /* CONFIG_IPV6 */
++
+ static int ncsi_kick_channels(struct ncsi_dev_priv *ndp)
+ {
+ 	struct ncsi_dev *nd = &ndp->ndev;
+@@ -1658,6 +1733,11 @@ struct ncsi_dev *ncsi_register_dev(struct net_device *dev,
+ 	}
+ 
+ 	spin_lock_irqsave(&ncsi_dev_lock, flags);
++#if IS_ENABLED(CONFIG_IPV6)
++	ndp->inet6_addr_num = 0;
++	if (list_empty(&ncsi_dev_list))
++		register_inet6addr_notifier(&ncsi_inet6addr_notifier);
++#endif
+ 	list_add_tail_rcu(&ndp->node, &ncsi_dev_list);
+ 	spin_unlock_irqrestore(&ncsi_dev_lock, flags);
+ 
+@@ -1824,6 +1904,10 @@ void ncsi_unregister_dev(struct ncsi_dev *nd)
+ 
+ 	spin_lock_irqsave(&ncsi_dev_lock, flags);
+ 	list_del_rcu(&ndp->node);
++#if IS_ENABLED(CONFIG_IPV6)
++	if (list_empty(&ncsi_dev_list))
++		unregister_inet6addr_notifier(&ncsi_inet6addr_notifier);
++#endif
+ 	spin_unlock_irqrestore(&ncsi_dev_lock, flags);
+ 
+ 	ncsi_unregister_netlink(nd->dev);
+diff --git a/net/ncsi/ncsi-netlink.c b/net/ncsi/ncsi-netlink.c
+index 8b386d766e7d..d08d2276f686 100644
+--- a/net/ncsi/ncsi-netlink.c
++++ b/net/ncsi/ncsi-netlink.c
+@@ -1,6 +1,10 @@
+-// SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+  * Copyright Samuel Mendoza-Jonas, IBM Corporation 2018.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
+  */
+ 
+ #include <linux/module.h>
+@@ -75,7 +79,7 @@ static int ncsi_write_channel_info(struct sk_buff *skb,
+ 	nla_put_u32(skb, NCSI_CHANNEL_ATTR_VERSION_MINOR, nc->version.alpha2);
+ 	nla_put_string(skb, NCSI_CHANNEL_ATTR_VERSION_STR, nc->version.fw_name);
+ 
+-	vid_nest = nla_nest_start_noflag(skb, NCSI_CHANNEL_ATTR_VLAN_LIST);
++	vid_nest = nla_nest_start(skb, NCSI_CHANNEL_ATTR_VLAN_LIST);
+ 	if (!vid_nest)
+ 		return -ENOMEM;
+ 	ncf = &nc->vlan_filter;
+@@ -109,19 +113,19 @@ static int ncsi_write_package_info(struct sk_buff *skb,
+ 	NCSI_FOR_EACH_PACKAGE(ndp, np) {
+ 		if (np->id != id)
+ 			continue;
+-		pnest = nla_nest_start_noflag(skb, NCSI_PKG_ATTR);
++		pnest = nla_nest_start(skb, NCSI_PKG_ATTR);
+ 		if (!pnest)
+ 			return -ENOMEM;
+ 		nla_put_u32(skb, NCSI_PKG_ATTR_ID, np->id);
+ 		if ((0x1 << np->id) == ndp->package_whitelist)
+ 			nla_put_flag(skb, NCSI_PKG_ATTR_FORCED);
+-		cnest = nla_nest_start_noflag(skb, NCSI_PKG_ATTR_CHANNEL_LIST);
++		cnest = nla_nest_start(skb, NCSI_PKG_ATTR_CHANNEL_LIST);
+ 		if (!cnest) {
+ 			nla_nest_cancel(skb, pnest);
+ 			return -ENOMEM;
+ 		}
+ 		NCSI_FOR_EACH_CHANNEL(np, nc) {
+-			nest = nla_nest_start_noflag(skb, NCSI_CHANNEL_ATTR);
++			nest = nla_nest_start(skb, NCSI_CHANNEL_ATTR);
+ 			if (!nest) {
+ 				nla_nest_cancel(skb, cnest);
+ 				nla_nest_cancel(skb, pnest);
+@@ -183,7 +187,7 @@ static int ncsi_pkg_info_nl(struct sk_buff *msg, struct genl_info *info)
+ 
+ 	package_id = nla_get_u32(info->attrs[NCSI_ATTR_PACKAGE_ID]);
+ 
+-	attr = nla_nest_start_noflag(skb, NCSI_ATTR_PACKAGE_LIST);
++	attr = nla_nest_start(skb, NCSI_ATTR_PACKAGE_LIST);
+ 	if (!attr) {
+ 		kfree_skb(skb);
+ 		return -EMSGSIZE;
+@@ -216,8 +220,8 @@ static int ncsi_pkg_info_all_nl(struct sk_buff *skb,
+ 	void *hdr;
+ 	int rc;
+ 
+-	rc = genlmsg_parse_deprecated(cb->nlh, &ncsi_genl_family, attrs, NCSI_ATTR_MAX,
+-				      ncsi_genl_policy, NULL);
++	rc = genlmsg_parse(cb->nlh, &ncsi_genl_family, attrs, NCSI_ATTR_MAX,
++			   ncsi_genl_policy, NULL);
+ 	if (rc)
+ 		return rc;
+ 
+@@ -246,7 +250,7 @@ static int ncsi_pkg_info_all_nl(struct sk_buff *skb,
+ 		goto err;
+ 	}
+ 
+-	attr = nla_nest_start_noflag(skb, NCSI_ATTR_PACKAGE_LIST);
++	attr = nla_nest_start(skb, NCSI_ATTR_PACKAGE_LIST);
+ 	if (!attr) {
+ 		rc = -EMSGSIZE;
+ 		goto err;
+diff --git a/net/ncsi/ncsi-netlink.h b/net/ncsi/ncsi-netlink.h
+index 7502723fba83..c4a46887a932 100644
+--- a/net/ncsi/ncsi-netlink.h
++++ b/net/ncsi/ncsi-netlink.h
+@@ -1,6 +1,10 @@
+-/* SPDX-License-Identifier: GPL-2.0-or-later */
+ /*
+  * Copyright Samuel Mendoza-Jonas, IBM Corporation 2018.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
+  */
+ 
+ #ifndef __NCSI_NETLINK_H__
+diff --git a/net/ncsi/ncsi-pkt.h b/net/ncsi/ncsi-pkt.h
+index 80938b338fee..2a6d83a596c9 100644
+--- a/net/ncsi/ncsi-pkt.h
++++ b/net/ncsi/ncsi-pkt.h
+@@ -1,6 +1,10 @@
+-/* SPDX-License-Identifier: GPL-2.0-or-later */
+ /*
+  * Copyright Gavin Shan, IBM Corporation 2016.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
+  */
+ 
+ #ifndef __NCSI_PKT_H__
+@@ -387,9 +391,6 @@ struct ncsi_aen_hncdsc_pkt {
+ #define NCSI_PKT_CMD_OEM	0x50 /* OEM                              */
+ #define NCSI_PKT_CMD_PLDM	0x51 /* PLDM request over NCSI over RBT  */
+ #define NCSI_PKT_CMD_GPUUID	0x52 /* Get package UUID                 */
+-#define NCSI_PKT_CMD_QPNPR	0x56 /* Query Pending NC PLDM request */
+-#define NCSI_PKT_CMD_SNPR	0x57 /* Send NC PLDM Reply  */
+-
+ 
+ /* NCSI packet responses */
+ #define NCSI_PKT_RSP_CIS	(NCSI_PKT_CMD_CIS    + 0x80)
+@@ -422,8 +423,6 @@ struct ncsi_aen_hncdsc_pkt {
+ #define NCSI_PKT_RSP_OEM	(NCSI_PKT_CMD_OEM    + 0x80)
+ #define NCSI_PKT_RSP_PLDM	(NCSI_PKT_CMD_PLDM   + 0x80)
+ #define NCSI_PKT_RSP_GPUUID	(NCSI_PKT_CMD_GPUUID + 0x80)
+-#define NCSI_PKT_RSP_QPNPR	(NCSI_PKT_CMD_QPNPR   + 0x80)
+-#define NCSI_PKT_RSP_SNPR	(NCSI_PKT_CMD_SNPR   + 0x80)
+ 
+ /* NCSI response code/reason */
+ #define NCSI_PKT_RSP_C_COMPLETED	0x0000 /* Command Completed        */
+diff --git a/net/ncsi/ncsi-rsp.c b/net/ncsi/ncsi-rsp.c
+index d5611f04926d..21a7a58eeca4 100644
+--- a/net/ncsi/ncsi-rsp.c
++++ b/net/ncsi/ncsi-rsp.c
+@@ -1,6 +1,10 @@
+-// SPDX-License-Identifier: GPL-2.0-or-later
+ /*
+  * Copyright Gavin Shan, IBM Corporation 2016.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
+  */
+ 
+ #include <linux/module.h>
+@@ -35,11 +39,15 @@ static int ncsi_validate_rsp_pkt(struct ncsi_request *nr,
+ 	if (h->common.revision != NCSI_PKT_REVISION) {
+ 		netdev_dbg(nr->ndp->ndev.dev,
+ 			   "NCSI: unsupported header revision\n");
++/*		netdev_warn(nr->ndp->ndev.dev,
++			   "NCSI: unsupported header revision, %d\n",h->common.revision);*/
+ 		return -EINVAL;
+ 	}
+ 	if (ntohs(h->common.length) != payload) {
+ 		netdev_dbg(nr->ndp->ndev.dev,
+ 			   "NCSI: payload length mismatched\n");
++/*		netdev_warn(nr->ndp->ndev.dev,
++			   "NCSI: payload length mismatched, %d\n",ntohs(h->common.length));*/
+ 		return -EINVAL;
+ 	}
+ 
+@@ -49,6 +57,9 @@ static int ncsi_validate_rsp_pkt(struct ncsi_request *nr,
+ 		netdev_dbg(nr->ndp->ndev.dev,
+ 			   "NCSI: non zero response/reason code %04xh, %04xh\n",
+ 			    ntohs(h->code), ntohs(h->reason));
++/*		netdev_warn(nr->ndp->ndev.dev,
++			   "NCSI: non zero response/reason code %04xh, %04xh\n",
++			    ntohs(h->code), ntohs(h->reason));*/
+ 		return -EPERM;
+ 	}
+ 
+@@ -56,7 +67,7 @@ static int ncsi_validate_rsp_pkt(struct ncsi_request *nr,
+ 	 * sender doesn't support checksum according to NCSI
+ 	 * specification.
+ 	 */
+-	pchecksum = (__be32 *)((void *)(h + 1) + ALIGN(payload, 4) - 4);
++	pchecksum = (__be32 *)((void *)(h + 1) + payload - 4);
+ 	if (ntohl(*pchecksum) == 0)
+ 		return 0;
+ 
+@@ -67,6 +78,9 @@ static int ncsi_validate_rsp_pkt(struct ncsi_request *nr,
+ 		netdev_dbg(nr->ndp->ndev.dev,
+ 			   "NCSI: checksum mismatched; recd: %08x calc: %08x\n",
+ 			   *pchecksum, htonl(checksum));
++/*		netdev_warn(nr->ndp->ndev.dev,
++			   "NCSI: checksum mismatched; recd: %08x calc: %08x\n",
++			   *pchecksum, htonl(checksum));*/
+ 		return -EINVAL;
+ 	}
+ 
+@@ -1038,11 +1052,6 @@ static int ncsi_rsp_handler_gpuuid(struct ncsi_request *nr)
+ 	return 0;
+ }
+ 
+-static int ncsi_rsp_handler_pldm(struct ncsi_request *nr)
+-{
+-	return 0;
+-}
+-
+ static int ncsi_rsp_handler_netlink(struct ncsi_request *nr)
+ {
+ 	struct ncsi_dev_priv *ndp = nr->ndp;
+@@ -1091,15 +1100,13 @@ static struct ncsi_rsp_handler {
+ 	{ NCSI_PKT_RSP_GVI,    40, ncsi_rsp_handler_gvi     },
+ 	{ NCSI_PKT_RSP_GC,     32, ncsi_rsp_handler_gc      },
+ 	{ NCSI_PKT_RSP_GP,     -1, ncsi_rsp_handler_gp      },
+-	{ NCSI_PKT_RSP_GCPS,  204, ncsi_rsp_handler_gcps    },
+-	{ NCSI_PKT_RSP_GNS,    32, ncsi_rsp_handler_gns     },
+-	{ NCSI_PKT_RSP_GNPTS,  48, ncsi_rsp_handler_gnpts   },
++	{ NCSI_PKT_RSP_GCPS,  172, ncsi_rsp_handler_gcps    },
++	{ NCSI_PKT_RSP_GNS,   172, ncsi_rsp_handler_gns     },
++	{ NCSI_PKT_RSP_GNPTS, 172, ncsi_rsp_handler_gnpts   },
+ 	{ NCSI_PKT_RSP_GPS,     8, ncsi_rsp_handler_gps     },
+ 	{ NCSI_PKT_RSP_OEM,    -1, ncsi_rsp_handler_oem     },
+-	{ NCSI_PKT_RSP_PLDM,   -1, ncsi_rsp_handler_pldm    },
+-	{ NCSI_PKT_RSP_GPUUID, 20, ncsi_rsp_handler_gpuuid  },
+-	{ NCSI_PKT_RSP_QPNPR,  -1, ncsi_rsp_handler_pldm    },
+-	{ NCSI_PKT_RSP_SNPR,   -1, ncsi_rsp_handler_pldm    }
++	{ NCSI_PKT_RSP_PLDM,    0, NULL                     },
++	{ NCSI_PKT_RSP_GPUUID, 20, ncsi_rsp_handler_gpuuid  }
+ };
+ 
+ int ncsi_rcv_rsp(struct sk_buff *skb, struct net_device *dev,
+@@ -1164,9 +1171,9 @@ int ncsi_rcv_rsp(struct sk_buff *skb, struct net_device *dev,
+ 		payload = ntohs(hdr->length);
+ 	ret = ncsi_validate_rsp_pkt(nr, payload);
+ 	if (ret) {
+-		netdev_warn(ndp->ndev.dev,
+-			    "NCSI: 'bad' packet ignored for type 0x%x\n",
+-			    hdr->type);
++//		netdev_warn(ndp->ndev.dev,
++//			    "NCSI: 'bad' packet ignored for type 0x%x\n",
++//			    hdr->type);
+ 
+ 		if (nr->flags == NCSI_REQ_FLAG_NETLINK_DRIVEN) {
+ 			if (ret == -EPERM)

@@ -1,0 +1,24 @@
+From bfb57ae5f2d1441cafaabb94ff9adc469d3f94ed Mon Sep 17 00:00:00 2001
+From: aken_liu <aken_liu@edge-core.com>
+Date: Mon, 29 Mar 2021 10:20:21 +0000
+Subject: [PATCH] change console to ttys1 for edge-core device
+
+---
+ include/configs/aspeed-common.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/configs/aspeed-common.h b/include/configs/aspeed-common.h
+index 876958735b..dff4f92d9a 100755
+--- a/include/configs/aspeed-common.h
++++ b/include/configs/aspeed-common.h
+@@ -76,6 +76,7 @@
+ 
+ #define CONFIG_ENV_SECT_SIZE	(4 << 10)
+ 
++#define CONFIG_BOOTARGS "console=ttyS1,115200n8 root=/dev/ram rw"
+ /*
+  * Ethernet related
+  */
+-- 
+2.25.0
+

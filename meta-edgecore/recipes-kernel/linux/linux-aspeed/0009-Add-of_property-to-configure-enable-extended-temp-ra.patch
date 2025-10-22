@@ -1,0 +1,29 @@
+From ac000b52f9000a978d9852c92c3989a9832b49d3 Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@accton.com>
+Date: Tue, 22 Oct 2024 16:10:03 +0800
+Subject: [PATCH] Add of_property to configure enable extended temp range
+
+---
+ drivers/hwmon/tmp401.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/drivers/hwmon/tmp401.c b/drivers/hwmon/tmp401.c
+index fa361d9949db..3cdd52ab2965 100644
+--- a/drivers/hwmon/tmp401.c
++++ b/drivers/hwmon/tmp401.c
+@@ -605,6 +605,12 @@ static int tmp401_init_client(struct tmp401_data *data,
+ 
+ 	config_orig = config;
+ 	config &= ~TMP401_CONFIG_SHUTDOWN;
++	if (of_property_read_bool(data->client->dev.of_node, "ti,extended-range-enable")) {
++		/* Enable measurement over extended temperature range */
++		config |= TMP401_CONFIG_RANGE;
++		dev_warn(&client->dev,
++		    "TPM401 temperature value range change to [-64, 191C] !\n");
++	}
+ 
+ 	if (config != config_orig)
+ 		status = i2c_smbus_write_byte_data(client,
+-- 
+2.20.1
+

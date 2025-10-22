@@ -1,0 +1,55 @@
+From d9bd533e2131e452168f8e15021182abacc44baa Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@accton.com>
+Date: Thu, 25 Apr 2024 15:21:22 +0800
+Subject: [PATCH] pmbus vid mode add VR12,VR13 versions
+
+---
+ drivers/hwmon/pmbus/pmbus.c | 15 ++++++++++++++-
+ drivers/hwmon/pmbus/pmbus.h |  5 +++++
+ 2 files changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/hwmon/pmbus/pmbus.c b/drivers/hwmon/pmbus/pmbus.c
+index c0bc43d01018..5116f5385d70 100644
+--- a/drivers/hwmon/pmbus/pmbus.c
++++ b/drivers/hwmon/pmbus/pmbus.c
+@@ -124,7 +124,20 @@ static int pmbus_identify(struct i2c_client *client,
+ 				break;
+ 			case 1:
+ 				info->format[PSC_VOLTAGE_OUT] = vid;
+-				info->vrm_version = vr11;
++				switch (vout_mode & GENMASK(4, 0)) {
++				case VRM_VER_PROT_VR13_0:
++				case VRM_VER_PROT_VR12_5:
++					info->vrm_version = vr13;
++					break;
++				case VRM_VER_PROT_VR13_5:
++				case VRM_VER_PROT_VR12_0:
++				case VRM_VER_PROT_IMVP8:
++					info->vrm_version = vr12;
++					break;
++				default:
++					info->vrm_version = vr11;
++					break;
++				}
+ 				break;
+ 			case 2:
+ 				info->format[PSC_VOLTAGE_OUT] = direct;
+diff --git a/drivers/hwmon/pmbus/pmbus.h b/drivers/hwmon/pmbus/pmbus.h
+index d198af3a92b6..5fecee189155 100644
+--- a/drivers/hwmon/pmbus/pmbus.h
++++ b/drivers/hwmon/pmbus/pmbus.h
+@@ -378,6 +378,11 @@ enum pmbus_sensor_classes {
+ 
+ enum pmbus_data_format { linear = 0, direct, vid };
+ enum vrm_version { vr11 = 0, vr12, vr13 };
++#define VRM_VER_PROT_VR12_0          0x01 /* VR12.0 mode */
++#define VRM_VER_PROT_VR12_5       0x02 /* VR12.5 mode */
++#define VRM_VER_PROT_VR13_0         0x04 /* VR13.0 mode */
++#define VRM_VER_PROT_IMVP8         0x05 /* IMVP8 mode */
++#define VRM_VER_PROT_VR13_5          0x07 /* VR13.0 mode, 5-mV DAC */
+ 
+ struct pmbus_driver_info {
+ 	int pages;		/* Total number of pages */
+-- 
+2.17.1
+

@@ -1,0 +1,47 @@
+From 361010744c58a54b2c20d0792f06f1a994f92ccc Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@edge-core.com>
+Date: Tue, 12 Sep 2023 10:40:26 +0800
+Subject: [PATCH] add EC fan/system cpld drivers
+
+---
+ drivers/hwmon/Kconfig  | 10 ++++++++++
+ drivers/hwmon/Makefile |  2 ++
+ 2 files changed, 12 insertions(+)
+
+diff --git a/drivers/hwmon/Kconfig b/drivers/hwmon/Kconfig
+index 67753e9fc8d0..f3a9f6e5baba 100644
+--- a/drivers/hwmon/Kconfig
++++ b/drivers/hwmon/Kconfig
+@@ -1956,6 +1956,16 @@ config I2C_MUX_EC_FPGA_MUX
+ 	help
+ 	  If you say yes here you get support for the EDGE-CORE FPGA I2C MUX.
+ 
++config SENSORS_EC_FAN_CPLD
++	tristate "Edge-core FAN CPLD driver"
++	help
++	  If you say yes here you get support for the EC FAN CPLD.
++
++config SENSORS_EC_SYSTEM_FPGA
++	tristate "Edge-core System CPLD driver"
++	help
++	  If you say yes here you get support for the EC System FPGA.
++
+ if ACPI
+ 
+ comment "ACPI drivers"
+diff --git a/drivers/hwmon/Makefile b/drivers/hwmon/Makefile
+index 6fd8d734a0d2..a305df93d6d5 100644
+--- a/drivers/hwmon/Makefile
++++ b/drivers/hwmon/Makefile
+@@ -180,6 +180,8 @@ obj-$(CONFIG_SENSORS_WM831X)	+= wm831x-hwmon.o
+ obj-$(CONFIG_SENSORS_WM8350)	+= wm8350-hwmon.o
+ obj-$(CONFIG_SENSORS_XGENE)	+= xgene-hwmon.o
+ obj-$(CONFIG_I2C_MUX_EC_FPGA_MUX) += ec_fpga_mux.o
++obj-$(CONFIG_SENSORS_EC_FAN_CPLD) += ec_fan_cpld.o
++obj-$(CONFIG_SENSORS_EC_SYSTEM_FPGA) += ec_system_fpga.o
+ 
+ obj-$(CONFIG_SENSORS_OCC)	+= occ/
+ obj-$(CONFIG_PMBUS)		+= pmbus/
+-- 
+2.20.1
+

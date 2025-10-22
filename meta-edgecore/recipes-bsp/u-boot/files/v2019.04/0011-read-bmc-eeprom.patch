@@ -1,0 +1,29 @@
+From c47ce2fbc0c52009b03b77b287bf5189ee5b10ff Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@accton.com>
+Date: Tue, 21 Oct 2025 14:26:15 +0800
+Subject: [PATCH] Read BMC eeprom
+
+---
+ cmd/i2c.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/cmd/i2c.c b/cmd/i2c.c
+index 86b087468b..a9b2e09b4a 100644
+--- a/cmd/i2c.c
++++ b/cmd/i2c.c
+@@ -2059,6 +2059,12 @@ void ec_i2c_set_bus_num(int bus_no)
+ #ifdef CONFIG_SYS_I2C_EEPROM_ADDR
+ int prepare_eeprom(void)
+ {
++	ec_i2c_set_bus_num(8);
++	udelay(1000);
++	ec_i2c_init();
++	udelay(1000);
++#include <asm/arch/fru_parsing.h>
++	get_eeprom_fru();
+ }
+ #endif
+ 
+-- 
+2.17.1
+

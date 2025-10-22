@@ -1,0 +1,39 @@
+From d0f1b60e11ad2464053e5a914473800461f36848 Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@accton.com>
+Date: Tue, 21 Oct 2025 13:51:14 +0800
+Subject: [PATCH] u-boot: ast2600: Add FMC dual boot config
+
+---
+ arch/arm/mach-aspeed/ast2600/Kconfig  | 6 ++++++
+ arch/arm/mach-aspeed/ast2600/Makefile | 1 +
+ 2 files changed, 7 insertions(+)
+
+diff --git a/arch/arm/mach-aspeed/ast2600/Kconfig b/arch/arm/mach-aspeed/ast2600/Kconfig
+index dd991e87c7..821d900f19 100644
+--- a/arch/arm/mach-aspeed/ast2600/Kconfig
++++ b/arch/arm/mach-aspeed/ast2600/Kconfig
+@@ -3,6 +3,12 @@ if ASPEED_AST2600
+ config SYS_CPU
+ 	default "armv7"
+ 
++config FMC_DUAL_BOOT
++	bool FMC_DUAL_BOOT
++	default n
++	help
++	  enable/disable fmc watchdog 2 dual boot feature.
++
+ choice
+ 	prompt "AST2600 board select"
+ 	depends on ASPEED_AST2600
+diff --git a/arch/arm/mach-aspeed/ast2600/Makefile b/arch/arm/mach-aspeed/ast2600/Makefile
+index ea5b79d057..a5421d070e 100644
+--- a/arch/arm/mach-aspeed/ast2600/Makefile
++++ b/arch/arm/mach-aspeed/ast2600/Makefile
+@@ -1,3 +1,4 @@
+ obj-y   += platform.o board_common.o scu_info.o utils.o cache.o
+ obj-$(CONFIG_SECURE_BOOT) += crypto.o aspeed_verify.o
++obj-$(CONFIG_FMC_DUAL_BOOT) += fmc_dual_boot.o
+ obj-$(CONFIG_SPL_BUILD) += spl.o
+-- 
+2.17.1
+

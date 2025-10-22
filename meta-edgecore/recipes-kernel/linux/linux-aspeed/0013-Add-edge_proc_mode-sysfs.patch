@@ -1,0 +1,24 @@
+From 218859acb5c8a21dbc9d18dc1b642ffdc17afb75 Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@edge-core.com>
+Date: Tue, 6 Jun 2023 15:51:08 +0800
+Subject: [PATCH] Add proc/led ctrl_mode sysfs
+
+---
+ fs/proc/Makefile | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/fs/proc/Makefile b/fs/proc/Makefile
+index ead487e80510..782de1f79311 100644
+--- a/fs/proc/Makefile
++++ b/fs/proc/Makefile
+@@ -27,6 +27,7 @@ proc-y	+= softirqs.o
+ proc-y	+= namespaces.o
+ proc-y	+= self.o
+ proc-y	+= thread_self.o
++proc-y 	+= ec_proc.o
+ proc-$(CONFIG_PROC_SYSCTL)	+= proc_sysctl.o
+ proc-$(CONFIG_NET)		+= proc_net.o
+ proc-$(CONFIG_PROC_KCORE)	+= kcore.o
+-- 
+2.20.1
+

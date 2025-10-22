@@ -1,0 +1,38 @@
+From b79ec9ee46e12b2a0a5478ed4903c461ff64d5ca Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@edge-core.com>
+Date: Mon, 21 Dec 2020 14:42:55 +0800
+Subject: [PATCH] aspeed watchdog add timeout property in dvt
+
+---
+ drivers/watchdog/aspeed_wdt.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/watchdog/aspeed_wdt.c b/drivers/watchdog/aspeed_wdt.c
+index 7e00960651fa..077ebf2f2e38 100644
+--- a/drivers/watchdog/aspeed_wdt.c
++++ b/drivers/watchdog/aspeed_wdt.c
+@@ -263,9 +263,6 @@ static int aspeed_wdt_probe(struct platform_device *pdev)
+ 	wdt->wdd.max_hw_heartbeat_ms = WDT_MAX_TIMEOUT_MS;
+ 	wdt->wdd.parent = dev;
+ 
+-	wdt->wdd.timeout = WDT_DEFAULT_TIMEOUT;
+-	watchdog_init_timeout(&wdt->wdd, 0, dev);
+-
+ 	np = dev->of_node;
+ 
+ 	ofdid = of_match_node(aspeed_wdt_of_table, np);
+@@ -273,6 +270,11 @@ static int aspeed_wdt_probe(struct platform_device *pdev)
+ 		return -EINVAL;
+ 	config = ofdid->data;
+ 
++	if (of_property_read_u32(np, "timeout", &wdt->wdd.timeout)) {
++		wdt->wdd.timeout = WDT_DEFAULT_TIMEOUT;
++	}
++	watchdog_init_timeout(&wdt->wdd, 0, dev);
++
+ 	/*
+ 	 * On clock rates:
+ 	 *  - ast2400 wdt can run at PCLK, or 1MHz
+-- 
+2.17.1
+

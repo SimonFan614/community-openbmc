@@ -1,0 +1,33 @@
+From 1a496131ca3088055235a69456552afb870738d3 Mon Sep 17 00:00:00 2001
+From: Neal_Chen <neal_chen@accton.com>
+Date: Sat, 2 Oct 2021 12:36:56 +0000
+Subject: [PATCH] drivers: Kconfig/Makefile: Add jtag master driver
+
+---
+ drivers/Kconfig  | 2 ++
+ drivers/Makefile | 1 +
+ 2 files changed, 3 insertions(+)
+
+diff --git a/drivers/Kconfig b/drivers/Kconfig
+index 4322efa37732..2ef1d2891ffe 100644
+--- a/drivers/Kconfig
++++ b/drivers/Kconfig
+@@ -230,4 +230,6 @@ source "drivers/counter/Kconfig"
+ 
+ source "drivers/peci/Kconfig"
+ 
++source "drivers/jtag/Kconfig"
++
+ endmenu
+diff --git a/drivers/Makefile b/drivers/Makefile
+index 82f78cfedf69..88d9edc5733f 100644
+--- a/drivers/Makefile
++++ b/drivers/Makefile
+@@ -187,3 +187,4 @@ obj-$(CONFIG_GNSS)		+= gnss/
+ obj-$(CONFIG_INTERCONNECT)	+= interconnect/
+ obj-$(CONFIG_COUNTER)		+= counter/
+ obj-$(CONFIG_PECI)		+= peci/
++obj-$(CONFIG_JTAG)		+= jtag/
+-- 
+2.17.1
+

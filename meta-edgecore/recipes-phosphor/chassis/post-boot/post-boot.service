@@ -1,0 +1,11 @@
+[Unit]
+Description=Phosphor Post Boot Run Script
+
+[Service]
+ExecStart=/usr/bin/env post_boot.sh
+SyslogIdentifier=post_boot.sh
+Type=oneshot
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

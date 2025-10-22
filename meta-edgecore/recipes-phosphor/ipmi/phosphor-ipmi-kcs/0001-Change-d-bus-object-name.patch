@@ -1,0 +1,30 @@
+From 5faa4dd95cede41446ab007b95eb5d4a4c3e50e5 Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@edge-core.com>
+Date: Thu, 16 Jul 2020 17:56:37 +0800
+Subject: [PATCH] Change d-bus object name
+
+---
+ kcsbridged.cpp | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/kcsbridged.cpp b/kcsbridged.cpp
+index a37cf5f..92978a7 100644
+--- a/kcsbridged.cpp
++++ b/kcsbridged.cpp
+@@ -114,7 +114,7 @@ class SmsChannel
+         static constexpr const char pathBase[] =
+             "/xyz/openbmc_project/Ipmi/Channel/";
+         std::shared_ptr<sdbusplus::asio::dbus_interface> iface =
+-            server->add_interface(pathBase + channel,
++            server->add_interface(pathBase + channel.substr(channel.size() - 1),
+                                   "xyz.openbmc_project.Ipmi.Channel.SMS");
+         iface->register_method("setAttention",
+                                [this]() { return setAttention(); });
+@@ -121,6 +122,7 @@ class SmsChannel
+                                [this]() { return clearAttention(); });
+         iface->register_method("forceAbort", [this]() { return forceAbort(); });
+         iface->initialize();
++        clearAttention();
+     }
+ 
+     bool initOK() const

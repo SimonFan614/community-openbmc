@@ -1,0 +1,81 @@
+diff --git a/drivers/mtd/spi-nor/aspeed-smc.c b/drivers/mtd/spi-nor/aspeed-smc.c
+index 4208e63781d0..7bb1ff066a7a 100644
+--- a/drivers/mtd/spi-nor/aspeed-smc.c
++++ b/drivers/mtd/spi-nor/aspeed-smc.c
+@@ -290,6 +290,9 @@ struct aspeed_smc_controller {
+ #define SEGMENT_ADDR_REG(controller, cs)	\
+ 	((controller)->regs + SEGMENT_ADDR_REG0 + (cs) * 4)
+ 
++int probe_count=0;
++int wait_flag=0;
++
+ /*
+  * The Segment Registers of the AST2400 and AST2500 have a 8MB
+  * unit. The address range of a flash SPI slave is encoded with
+@@ -1222,6 +1225,26 @@ static int aspeed_smc_chip_setup_finish(struct aspeed_smc_chip *chip)
+ 	return 0;
+ }
+ 
++static bool __of_device_is_wait_ready(const struct device_node *device)
++{
++    const char *status;
++    int statlen;
++
++    if (!device)
++        return false;
++
++    status = of_get_property(device, "wait-ready", &statlen);
++    if (status == NULL)
++        return false;
++
++    if (statlen > 0) {
++        if (!strcmp(status, "okay") || !strcmp(status, "ok"))
++            return true;
++    }
++
++    return false;
++}
++
+ static int aspeed_smc_setup_flash(struct aspeed_smc_controller *controller,
+ 				  struct device_node *np, struct resource *r)
+ {
+@@ -1237,16 +1260,25 @@ static int aspeed_smc_setup_flash(struct aspeed_smc_controller *controller,
+ 	unsigned int cs;
+ 	int ret = -ENODEV;
+ 	int retrytimes=100;
++	wait_flag=0;
+ 
+ 	for_each_available_child_of_node(np, child) {
+ 		struct aspeed_smc_chip *chip;
+ 		struct spi_nor *nor;
+ 		struct mtd_info *mtd;
++		bool wait_ready=false;
+ 
+ 		/* This driver does not support NAND or NOR flash devices. */
+ 		if (!of_device_is_compatible(child, "jedec,spi-nor"))
+ 			continue;
+ 
++		wait_ready = __of_device_is_wait_ready(child);
++		if((wait_ready==true) &&(probe_count==0)) {
++			probe_count++;
++			wait_flag=1;
++			continue;
++		}
++
+ 		ret = of_property_read_u32(child, "reg", &cs);
+ 		if (ret) {
+ 			dev_err(dev, "Couldn't not read chip select.\n");
+@@ -1383,9 +1415,10 @@ static int aspeed_smc_probe(struct platform_device *pdev)
+ 	devm_clk_put(&pdev->dev, clk);
+ 
+ 	ret = aspeed_smc_setup_flash(controller, np, res);
+-	if (ret)
+-		dev_err(dev, "Aspeed SMC probe failed %d\n", ret);
+-
++	if (ret){
++		if(wait_flag==0)
++			dev_err(dev, "Aspeed SMC probe failed %d\n", ret);
++	}
+ 	return ret;
+ }
+ 

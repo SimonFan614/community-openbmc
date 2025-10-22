@@ -1,0 +1,160 @@
+diff --git a/net/ncsi/Kconfig b/net/ncsi/Kconfig
+index 7f2b46108a24..752459968adf 100644
+--- a/net/ncsi/Kconfig
++++ b/net/ncsi/Kconfig
+@@ -16,3 +16,9 @@ config NCSI_OEM_CMD_GET_MAC
+ 	---help---
+ 	  This allows to get MAC address from NCSI firmware and set them back to
+ 		controller.
++config NCSI_OEM_CMD_KEEP_PHY
++	bool "Keep PHY Link up"
++	depends on NET_NCSI
++	---help---
++	  This allows to keep PHY link up and prevents any channel resets during
++		the host load.
+diff --git a/net/ncsi/internal.h b/net/ncsi/internal.h
+index 87505600dbb2..a362f78ee231 100644
+--- a/net/ncsi/internal.h
++++ b/net/ncsi/internal.h
+@@ -71,12 +71,16 @@ enum {
+ /* OEM Vendor Manufacture ID */
+ #define NCSI_OEM_MFR_MLX_ID             0x8119
+ #define NCSI_OEM_MFR_BCM_ID             0x113d
++#define NCSI_OEM_MFR_INTEL_ID           0x157
++/* Intel specific OEM command */
++#define NCSI_OEM_INTEL_CMD_KEEP_PHY     0x20   /* CMD ID for Keep PHY up */
+ /* Broadcom specific OEM Command */
+ #define NCSI_OEM_BCM_CMD_GMA            0x01   /* CMD ID for Get MAC */
+ /* Mellanox specific OEM Command */
+ #define NCSI_OEM_MLX_CMD_GMA            0x00   /* CMD ID for Get MAC */
+ #define NCSI_OEM_MLX_CMD_GMA_PARAM      0x1b   /* Parameter for GMA  */
+ /* OEM Command payload lengths*/
++#define NCSI_OEM_INTEL_CMD_KEEP_PHY_LEN 7
+ #define NCSI_OEM_BCM_CMD_GMA_LEN        12
+ #define NCSI_OEM_MLX_CMD_GMA_LEN        8
+ /* Mac address offset in OEM response */
+@@ -256,6 +260,7 @@ enum {
+ 	ncsi_dev_state_probe_package,
+ 	ncsi_dev_state_probe_channel,
+ 	ncsi_dev_state_probe_cis,
++	ncsi_dev_state_probe_keep_phy,
+ 	ncsi_dev_state_probe_gvi,
+ 	ncsi_dev_state_probe_gc,
+ 	ncsi_dev_state_probe_gls,
+diff --git a/net/ncsi/ncsi-manage.c b/net/ncsi/ncsi-manage.c
+index 531b6a6cdea0..58c8ff61d5e5 100644
+--- a/net/ncsi/ncsi-manage.c
++++ b/net/ncsi/ncsi-manage.c
+@@ -690,6 +690,35 @@ static int set_one_vid(struct ncsi_dev_priv *ndp, struct ncsi_channel *nc,
+ 	return 0;
+ }
+ 
++#if IS_ENABLED(CONFIG_NCSI_OEM_CMD_KEEP_PHY)
++
++static int ncsi_oem_keep_phy_intel(struct ncsi_cmd_arg *nca)
++{
++       unsigned char data[NCSI_OEM_INTEL_CMD_KEEP_PHY_LEN];
++       int ret = 0;
++
++       nca->payload = NCSI_OEM_INTEL_CMD_KEEP_PHY_LEN;
++
++       memset(data, 0, NCSI_OEM_INTEL_CMD_KEEP_PHY_LEN);
++       *(unsigned int *)data = ntohl((__force __be32)NCSI_OEM_MFR_INTEL_ID);
++
++       data[4] = NCSI_OEM_INTEL_CMD_KEEP_PHY;
++
++       /* PHY Link up attribute */
++       data[6] = 0x1;
++
++       nca->data = data;
++
++       ret = ncsi_xmit_cmd(nca);
++       if (ret)
++               netdev_err(nca->ndp->ndev.dev,
++                          "NCSI: Failed to transmit cmd 0x%x during configure\n",
++                          nca->type);
++       return ret;
++}
++
++#endif
++
+ #if IS_ENABLED(CONFIG_NCSI_OEM_CMD_GET_MAC)
+ 
+ /* NCSI OEM Command APIs */
+@@ -701,7 +730,7 @@ static int ncsi_oem_gma_handler_bcm(struct ncsi_cmd_arg *nca)
+ 	nca->payload = NCSI_OEM_BCM_CMD_GMA_LEN;
+ 
+ 	memset(data, 0, NCSI_OEM_BCM_CMD_GMA_LEN);
+-	*(unsigned int *)data = ntohl(NCSI_OEM_MFR_BCM_ID);
++	*(unsigned int *)data = ntohl((__force __be32)NCSI_OEM_MFR_BCM_ID);
+ 	data[5] = NCSI_OEM_BCM_CMD_GMA;
+ 
+ 	nca->data = data;
+@@ -725,7 +754,7 @@ static int ncsi_oem_gma_handler_mlx(struct ncsi_cmd_arg *nca)
+ 	nca->payload = NCSI_OEM_MLX_CMD_GMA_LEN;
+ 
+ 	memset(&u, 0, sizeof(u));
+-	u.data_u32[0] = ntohl(NCSI_OEM_MFR_MLX_ID);
++	u.data_u32[0] = ntohl((__force __be32)NCSI_OEM_MFR_MLX_ID);
+ 	u.data_u8[5] = NCSI_OEM_MLX_CMD_GMA;
+ 	u.data_u8[6] = NCSI_OEM_MLX_CMD_GMA_PARAM;
+ 
+@@ -1339,8 +1368,24 @@ static void ncsi_probe_channel(struct ncsi_dev_priv *ndp)
+ 				goto error;
+ 		}
+ 
++               nd->state = ncsi_dev_state_probe_gvi;
++               if (IS_ENABLED(CONFIG_NCSI_OEM_CMD_KEEP_PHY))
++                       nd->state = ncsi_dev_state_probe_keep_phy;
++               break;
++#if IS_ENABLED(CONFIG_NCSI_OEM_CMD_KEEP_PHY)
++	case ncsi_dev_state_probe_keep_phy:
++		ndp->pending_req_num = 1;
++
++		nca.type = NCSI_PKT_CMD_OEM;
++		nca.package = ndp->active_package->id;
++		nca.channel = 0;
++		ret = ncsi_oem_keep_phy_intel(&nca);
++		if (ret)
++			goto error;
++
+ 		nd->state = ncsi_dev_state_probe_gvi;
+ 		break;
++#endif /* CONFIG_NCSI_OEM_CMD_KEEP_PHY */
+ 	case ncsi_dev_state_probe_gvi:
+ 	case ncsi_dev_state_probe_gc:
+ 	case ncsi_dev_state_probe_gls:
+diff --git a/net/ncsi/ncsi-rsp.c b/net/ncsi/ncsi-rsp.c
+index 21a7a58eeca4..e22a935226cc 100644
+--- a/net/ncsi/ncsi-rsp.c
++++ b/net/ncsi/ncsi-rsp.c
+@@ -417,7 +417,7 @@ static int ncsi_rsp_handler_ev(struct ncsi_request *nr)
+ 	/* Update to VLAN mode */
+ 	cmd = (struct ncsi_cmd_ev_pkt *)skb_network_header(nr->cmd);
+ 	ncm->enable = 1;
+-	ncm->data[0] = ntohl(cmd->mode);
++	ncm->data[0] = ntohl((__force __be32)cmd->mode);
+ 
+ 	return 0;
+ }
+@@ -707,12 +707,19 @@ static int ncsi_rsp_handler_oem_bcm(struct ncsi_request *nr)
+ 	return 0;
+ }
+ 
++/* Response handler for Intel card */
++static int ncsi_rsp_handler_oem_intel(struct ncsi_request *nr)
++{
++	return 0;
++}
++
+ static struct ncsi_rsp_oem_handler {
+ 	unsigned int	mfr_id;
+ 	int		(*handler)(struct ncsi_request *nr);
+ } ncsi_rsp_oem_handlers[] = {
+ 	{ NCSI_OEM_MFR_MLX_ID, ncsi_rsp_handler_oem_mlx },
+-	{ NCSI_OEM_MFR_BCM_ID, ncsi_rsp_handler_oem_bcm }
++	{ NCSI_OEM_MFR_BCM_ID, ncsi_rsp_handler_oem_bcm },
++	{ NCSI_OEM_MFR_INTEL_ID, ncsi_rsp_handler_oem_intel }
+ };
+ 
+ /* Response handler for OEM command */

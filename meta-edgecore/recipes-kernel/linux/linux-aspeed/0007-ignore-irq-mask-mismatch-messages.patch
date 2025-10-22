@@ -1,0 +1,25 @@
+From f8a53ca7b0c8c6133f79cae49958d5f191acaaf8 Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@edge-core.com>
+Date: Thu, 17 Dec 2020 18:12:52 +0800
+Subject: [PATCH] ignore irq mask mismatch messages
+
+---
+ drivers/i2c/busses/i2c-aspeed.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/i2c/busses/i2c-aspeed.c b/drivers/i2c/busses/i2c-aspeed.c
+index 538dfc4110f8..223629aba2f4 100644
+--- a/drivers/i2c/busses/i2c-aspeed.c
++++ b/drivers/i2c/busses/i2c-aspeed.c
+@@ -640,7 +640,7 @@ static irqreturn_t aspeed_i2c_bus_irq(int irq, void *dev_id)
+ #endif /* CONFIG_I2C_SLAVE */
+ 
+ 	irq_remaining &= ~irq_handled;
+-	if (irq_remaining)
++	if (irq_remaining && 0)
+ 		dev_err(bus->dev,
+ 			"irq handled != irq. expected 0x%08x, but was 0x%08x\n",
+ 			irq_received, irq_handled);
+-- 
+2.17.1
+

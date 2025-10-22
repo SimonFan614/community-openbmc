@@ -1,0 +1,46 @@
+From ae8f1adfb33cc954fd0aca1b1b7ad6e7321894fd Mon Sep 17 00:00:00 2001
+From: neal_chen <neal_chen@accton.com>
+Date: Thu, 6 May 2021 17:11:54 +0800
+Subject: [PATCH] uboot: v2019.04: arch: arm: lib: interrupt: Use the weak
+ function
+
+---
+ arch/arm/lib/interrupts.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/arch/arm/lib/interrupts.c b/arch/arm/lib/interrupts.c
+index ee775ce5d2..8f79fcb60c 100644
+--- a/arch/arm/lib/interrupts.c
++++ b/arch/arm/lib/interrupts.c
+@@ -25,6 +25,7 @@
+ 
+ DECLARE_GLOBAL_DATA_PTR;
+ 
++int interrupt_init (void) __attribute__((weak));
+ int interrupt_init (void)
+ {
+ 	/*
+@@ -35,10 +36,12 @@ int interrupt_init (void)
+ 	return 0;
+ }
+ 
++void enable_interrupts (void) __attribute__((weak));
+ void enable_interrupts (void)
+ {
+ 	return;
+ }
++int disable_interrupts (void) __attribute__((weak));
+ int disable_interrupts (void)
+ {
+ 	return 0;
+@@ -189,6 +192,7 @@ void do_fiq (struct pt_regs *pt_regs)
+ 	bad_mode ();
+ }
+ 
++void do_irq (struct pt_regs *pt_regs) __attribute__((weak));
+ void do_irq (struct pt_regs *pt_regs)
+ {
+ 	efi_restore_gd();
+-- 
+2.17.1
+

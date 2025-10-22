@@ -1,0 +1,12 @@
+[Unit]
+Description=Edge-Core Finish Boot Check Script
+After=serial-getty@ttyS4.service
+
+[Service]
+ExecStart=/usr/bin/env finish_boot.sh
+SyslogIdentifier=finish_boot.sh
+Type=oneshot
+RemainAfterExit=yes
+
+[Install]
+WantedBy=getty.target

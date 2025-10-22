@@ -1,0 +1,16 @@
+{
+    "inlet": [
+        {"instance": 1, "dbus": "/xyz/openbmc_project/sensors/temperature/LM75_0x4F", "record_id": 23}
+    ],
+    "baseboard": [
+        {"instance": 1, "dbus": "/xyz/openbmc_project/sensors/temperature/LM75_0x48", "record_id": 10},
+        {"instance": 2, "dbus": "/xyz/openbmc_project/sensors/temperature/LM75_0x49", "record_id": 11},
+        {"instance": 3, "dbus": "/xyz/openbmc_project/sensors/temperature/LM75_0x4A", "record_id": 20},
+        {"instance": 4, "dbus": "/xyz/openbmc_project/sensors/temperature/LM75_0x4C", "record_id": 22}
+    ],
+    "cpu": [
+        {"instance": 1, "dbus": "/xyz/openbmc_project/sensors/temperature/CPU_TEMP", "record_id": 60},
+        {"instance": 2, "dbus": "/xyz/openbmc_project/sensors/temperature/DIMM0_TEMP", "record_id": 61},
+        {"instance": 3, "dbus": "/xyz/openbmc_project/sensors/temperature/DIMM1_TEMP", "record_id": 62}
+    ]
+}

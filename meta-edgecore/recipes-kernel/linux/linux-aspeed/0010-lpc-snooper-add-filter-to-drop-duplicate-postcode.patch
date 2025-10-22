@@ -1,0 +1,77 @@
+From 6d4020d37087ce2eb8d57258b8e7bb363a638387 Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@edge-core.com>
+Date: Mon, 12 Dec 2022 18:48:06 +0800
+Subject: [PATCH] lpc snooper add filter to drop duplicate postcode
+
+---
+ drivers/soc/aspeed/aspeed-lpc-snoop.c | 58 +++++++++++++++++++++++++--
+ 1 file changed, 55 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/soc/aspeed/aspeed-lpc-snoop.c b/drivers/soc/aspeed/aspeed-lpc-snoop.c
+index 682ba0eb4eba..228d335f78bd 100644
+--- a/drivers/soc/aspeed/aspeed-lpc-snoop.c
++++ b/drivers/soc/aspeed/aspeed-lpc-snoop.c
+@@ -62,6 +62,8 @@ struct aspeed_lpc_snoop_channel {
+ 	struct kfifo		fifo;
+ 	wait_queue_head_t	wq;
+ 	struct miscdevice	miscdev;
++	u16		last_code;
++	unsigned long		last_jiffies;
+ };
+ 
+ struct aspeed_lpc_snoop {
+@@ -124,6 +126,18 @@ static void put_fifo_with_discard(struct aspeed_lpc_snoop_channel *chan, u8 val)
+ 	wake_up_interruptible(&chan->wq);
+ }
+ 
++static int can_popup_postcode(struct aspeed_lpc_snoop_channel *chan, u8 val)
++{
++	unsigned long PopupTime = jiffies;
++	if( (val == chan->last_code) &&
++	    ( ( ((PopupTime - chan->last_jiffies) * 1000) / HZ) < 200 ) ){
++		return 0;
++	}
++	chan->last_code = val;
++	chan->last_jiffies = PopupTime;
++	return 1;
++}
++
+ static irqreturn_t aspeed_lpc_snoop_irq(int irq, void *arg)
+ {
+ 	struct aspeed_lpc_snoop *lpc_snoop = arg;
+@@ -146,12 +160,16 @@ static irqreturn_t aspeed_lpc_snoop_irq(int irq, void *arg)
+ 	if (reg & HICR6_STR_SNP0W) {
+ 		u8 val = (data & SNPWDR_CH0_MASK) >> SNPWDR_CH0_SHIFT;
+ 
+-		put_fifo_with_discard(&lpc_snoop->chan[0], val);
++		if( can_popup_postcode(&lpc_snoop->chan[0], val) ){
++			put_fifo_with_discard(&lpc_snoop->chan[0], val);
++		}
+ 	}
+ 	if (reg & HICR6_STR_SNP1W) {
+ 		u8 val = (data & SNPWDR_CH1_MASK) >> SNPWDR_CH1_SHIFT;
+ 
+-		put_fifo_with_discard(&lpc_snoop->chan[1], val);
++		if( can_popup_postcode(&lpc_snoop->chan[1], val) ){
++			put_fifo_with_discard(&lpc_snoop->chan[1], val);
++		}
+ 	}
+ 
+ 	return IRQ_HANDLED;
+@@ -161,7 +179,12 @@ static int aspeed_lpc_snoop_config_irq(struct aspeed_lpc_snoop *lpc_snoop,
+ 				       struct platform_device *pdev)
+ {
+ 	struct device *dev = &pdev->dev;
+-	int rc;
++	int rc, i;
++
++	for( i=0; i<2; i++ ){
++		lpc_snoop->chan[i].last_code = 0xffff;
++		lpc_snoop->chan[i].last_jiffies = 0;
++	}
+ 
+ 	lpc_snoop->irq = platform_get_irq(pdev, 0);
+ 	if (!lpc_snoop->irq)
+-- 
+2.20.1
+

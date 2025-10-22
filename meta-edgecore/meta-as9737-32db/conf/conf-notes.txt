@@ -1,0 +1,2 @@
+Sample meta-as9737-32db build invocations:
+	bitbake obmc-phosphor-image

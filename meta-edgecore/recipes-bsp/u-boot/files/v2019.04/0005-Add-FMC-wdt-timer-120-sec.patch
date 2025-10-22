@@ -1,0 +1,38 @@
+From ef53b7f7173fab265bc6567943f847007f325dd9 Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@edge-core.com>
+Date: Tue, 2 Feb 2021 10:58:39 +0800
+Subject: [PATCH] Add FMC wdt timer(120 sec)
+
+---
+ common/bootm.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/common/bootm.c b/common/bootm.c
+index 3adbceaa38..ee193faf8c 100644
+--- a/common/bootm.c
++++ b/common/bootm.c
+@@ -24,7 +24,9 @@
+ #else
+ #include "mkimage.h"
+ #endif
+-
++#ifdef CONFIG_FMC_DUAL_BOOT
++#include <asm/arch/fmc_dual_boot_ast2600.h>
++#endif
+ #include <command.h>
+ #include <bootm.h>
+ #include <image.h>
+@@ -88,6 +90,10 @@ static int bootm_find_os(cmd_tbl_t *cmdtp, int flag, int argc,
+ 	bool ep_found = false;
+ 	int ret;
+ 
++#ifdef CONFIG_FMC_DUAL_BOOT
++       fmc_enable_dual_boot(120);
++#endif
++
+ 	/* get kernel image header, start address and length */
+ 	os_hdr = boot_get_kernel(cmdtp, flag, argc, argv,
+ 			&images, &images.os.image_start, &images.os.image_len);
+-- 
+2.17.1
+

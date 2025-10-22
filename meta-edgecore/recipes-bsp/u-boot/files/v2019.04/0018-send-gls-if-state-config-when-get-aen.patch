@@ -1,0 +1,75 @@
+From 3c254f3c6d301743cb6ba6713b8ef798c03c2ddf Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@accton.com>
+Date: Tue, 21 Oct 2025 15:00:01 +0800
+Subject: [PATCH] send gls if state config when get aen
+
+---
+ drivers/net/phy/ncsi.c | 31 +++++++++++++++++++------------
+ 1 file changed, 19 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/net/phy/ncsi.c b/drivers/net/phy/ncsi.c
+index 2a750a9078..a7649f8dcc 100644
+--- a/drivers/net/phy/ncsi.c
++++ b/drivers/net/phy/ncsi.c
+@@ -31,6 +31,8 @@
+ #define NCSI_CAP_AEN_MASK	0x07
+ #define NCSI_CAP_VLAN_MASK	0x07
+ 
++#define NCSI_PROTO_SUCCESS_FLAG		1
++
+ static void ncsi_send_ebf(unsigned int np, unsigned int nc);
+ static void ncsi_send_ae(unsigned int np, unsigned int nc);
+ static void ncsi_send_gls(unsigned int np, unsigned int nc);
+@@ -86,6 +88,7 @@ struct ncsi {
+ 	unsigned int		n_packages;
+ 	struct ncsi_package	*packages;
+ 	struct phy_device 	*parent;
++	u32 flags;
+ };
+ 
+ struct ncsi *ncsi_priv = NULL;
+@@ -536,7 +539,10 @@ static void ncsi_update_state(struct ncsi_rsp_pkt_hdr *nh)
+ 	case NCSI_CONFIG:
+ 		if (ncsi_priv->pending_requests == 0) {
+ 			printf("NCSI: configuration done!\n");
+-			net_set_state(NETLOOP_SUCCESS);
++			if( !(ncsi_priv->flags & NCSI_PROTO_SUCCESS_FLAG) ){
++				ncsi_priv->flags |= NCSI_PROTO_SUCCESS_FLAG;
++				net_set_state(NETLOOP_SUCCESS);
++			}
+ 		} else if (timeout) {
+ 			printf("NCSI: timeout during configure\n");
+ 			net_set_state(NETLOOP_FAIL);
+@@ -661,17 +667,18 @@ static void ncsi_handle_aen(struct ip_udp_hdr *ip, unsigned int len)
+ 		}
+ 	}
+ 
+-	/* Link or configuration lost - just redo the discovery process */
+-	ncsi_priv->state = NCSI_PROBE_PACKAGE_SP;
+-	for (i = 0; i < ncsi_priv->n_packages; i++)
+-		free(ncsi_priv->packages[i].channels);
+-	free(ncsi_priv->packages);
+-	ncsi_priv->n_packages = 0;
+-
+-	ncsi_priv->current_package = NCSI_PACKAGE_MAX;
+-	ncsi_priv->current_channel = NCSI_CHANNEL_MAX;
+-
+-	ncsi_probe_packages();
++	/*
++	  if we get AEN when state is not NCSI_CONFIG, we reset NCSI and negociate from
++	  the start;
++	  otherwise we simply send NCSI/GLS packet(get link status)
++	*/
++	if( ncsi_priv->state != NCSI_CONFIG){
++		ncsi_initiator_package(0);
++		ncsi_initiator_package(1);
++	}
++	else{
++		ncsi_send_gls(ncsi_priv->current_package, ncsi_priv->current_channel);
++	}
+ }
+ 
+ void ncsi_receive(struct ethernet_hdr *et, struct ip_udp_hdr *ip,
+-- 
+2.17.1
+

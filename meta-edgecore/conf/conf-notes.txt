@@ -1,0 +1,5 @@
+Sample meta-sylvia build invocations:
+
+sylvia-ast2600:
+DISTRO=openbmc-openpower MACHINE=sylvia-ast2600 bitbake obmc-phosphor-image
+

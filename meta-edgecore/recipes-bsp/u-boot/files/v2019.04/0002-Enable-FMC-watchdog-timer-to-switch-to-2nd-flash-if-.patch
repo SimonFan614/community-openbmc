@@ -1,0 +1,29 @@
+From c5295a5552e18d3819e35445daf02893b78aaeb0 Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@edge-core.com>
+Date: Tue, 22 Dec 2020 11:45:55 +0800
+Subject: [PATCH] Enable FMC watchdog timer to switch to 2nd flash if boot fail
+
+---
+ common/bootm.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/common/bootm.c b/common/bootm.c
+index 3adbceaa38..1c0f309857 100644
+--- a/common/bootm.c
++++ b/common/bootm.c
+@@ -88,6 +88,12 @@ static int bootm_find_os(cmd_tbl_t *cmdtp, int flag, int argc,
+ 	bool ep_found = false;
+ 	int ret;
+ 
++	if((readl(ASPEED_HW_STRAP2) & BIT(11)) &&
++	   !(readl(0x1e620064) & BIT(4))) { /* enable FMC watchdog to boot from 2nd flash if boot fail */
++		writel(0x4B0, 0x1e620068);
++		writel(1, 0x1e620064);
++	}
++
+ 	/* get kernel image header, start address and length */
+ 	os_hdr = boot_get_kernel(cmdtp, flag, argc, argv,
+ 			&images, &images.os.image_start, &images.os.image_len);
+-- 
+2.17.1
+

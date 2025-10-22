@@ -1,0 +1,167 @@
+From 3dad364b9713427bd995875af650cfd6aa6026f8 Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@accton.com>
+Date: Tue, 21 Oct 2025 14:57:06 +0800
+Subject: [PATCH] fix ncsi initial state error
+
+---
+ drivers/net/phy/ncsi.c | 100 +++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 96 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/phy/ncsi.c b/drivers/net/phy/ncsi.c
+index f96c8f30e9..2a750a9078 100644
+--- a/drivers/net/phy/ncsi.c
++++ b/drivers/net/phy/ncsi.c
+@@ -85,9 +85,10 @@ struct ncsi {
+ 
+ 	unsigned int		n_packages;
+ 	struct ncsi_package	*packages;
++	struct phy_device 	*parent;
+ };
+ 
+-struct ncsi *ncsi_priv;
++struct ncsi *ncsi_priv = NULL;
+ 
+ bool ncsi_active(void)
+ {
+@@ -106,6 +107,37 @@ bool ncsi_active(void)
+ 		ncsi_priv->packages[np].channels[nc].has_link;
+ }
+ 
++static void set_ncsi_initial_val(void)
++{
++	for (int i = 0; i < ncsi_priv->n_packages; i++){
++		if( ncsi_priv->packages[i].n_channels ){
++			free(ncsi_priv->packages[i].channels);
++		}
++	}
++	if( ncsi_priv->n_packages ){
++		free(ncsi_priv->packages);
++	}
++	ncsi_priv->n_packages = 0;
++
++	/* Set initial probe state */
++	ncsi_priv->state = NCSI_PROBE_PACKAGE_SP;
++
++	/* No active package/channel yet */
++	ncsi_priv->current_package = NCSI_PACKAGE_MAX;
++	ncsi_priv->current_channel = NCSI_CHANNEL_MAX;
++}
++
++void ncsi_initiator_package(int action)
++{
++	if( action ){
++		set_ncsi_initial_val();
++		ncsi_probe_packages();
++	}
++	else{
++		ncsi_shutdown(ncsi_priv->parent);
++	}
++}
++
+ static unsigned int cmd_payload(int cmd)
+ {
+ 	switch (cmd) {
+@@ -882,10 +914,50 @@ int ncsi_probe(struct phy_device *phydev)
+ 	}
+ 
+ 	ncsi_priv = phydev->priv;
++	ncsi_priv->parent = phydev;
++
++	set_ncsi_initial_val();
+ 
+ 	return 0;
+ }
+ 
++void copy_ncsi(struct ncsi *dst_ncsi, struct ncsi *src_ncsi)
++{
++	int np = 0;
++	struct ncsi_package *package = NULL;
++
++	dst_ncsi->state = src_ncsi->state;
++	dst_ncsi->current_package = src_ncsi->current_package;
++	dst_ncsi->current_channel = src_ncsi->current_channel;
++	dst_ncsi->pending_requests = src_ncsi->pending_requests;
++	memcpy(dst_ncsi->requests, src_ncsi->requests, sizeof(src_ncsi->requests));
++	dst_ncsi->last_request = src_ncsi->last_request;
++	dst_ncsi->n_packages = src_ncsi->n_packages;
++	dst_ncsi->packages = malloc(src_ncsi->n_packages * sizeof(struct ncsi_package));
++	if( dst_ncsi->n_packages && !dst_ncsi->packages ){
++		printf("alloc ncsi package(%d) failed!\n", src_ncsi->n_packages);
++		return;
++	}
++	for (np = 0; np < src_ncsi->n_packages; np++) {
++		package = &src_ncsi->packages[np];
++		dst_ncsi->packages[np].id = package->id;
++		dst_ncsi->packages[np].n_channels = package->n_channels;
++		dst_ncsi->packages[np].channels =
++			malloc(package->n_channels * sizeof(struct ncsi_channel));
++		if( package->n_channels && !dst_ncsi->packages[np].channels ){
++			printf("alloc ncsi channel(%d, %d) failed!\n", np, package->n_channels);
++			break;
++		}
++		memcpy(dst_ncsi->packages[np].channels, package->channels,
++			sizeof(package->n_channels * sizeof(struct ncsi_channel)));
++	}
++	for (np = 0; np < src_ncsi->n_packages; np++) {
++		package = &src_ncsi->packages[np];
++		free(package->channels);
++	}
++	free(src_ncsi->packages);
++}
++
+ int ncsi_startup(struct phy_device *phydev)
+ {
+ 	/* Set phydev parameters */
+@@ -894,26 +966,46 @@ int ncsi_startup(struct phy_device *phydev)
+ 	/* Normal phy reset is N/A */
+ 	phydev->flags |= PHY_FLAG_BROKEN_RESET;
+ 
++	/*
++	  ping command still call ncsi_startup() after ncsi negociate success.
++	  reset ncsi variable will disturb ncsi negociate thereafter.
++	*/
++#if 0
+ 	/* Set initial probe state */
+ 	ncsi_priv->state = NCSI_PROBE_PACKAGE_SP;
+ 
+ 	/* No active package/channel yet */
+ 	ncsi_priv->current_package = NCSI_PACKAGE_MAX;
+ 	ncsi_priv->current_channel = NCSI_CHANNEL_MAX;
++#endif
+ 
+ 	/* Pretend link works so the MAC driver sets final bits up */
+ 	phydev->link = true;
+ 
+ 	/* Set ncsi_priv so we can use it when called from net_loop() */
+-	ncsi_priv = phydev->priv;
++//	ncsi_priv = phydev->priv;
++	/*
++	  ncsi_priv pointer already contain ncsi negociate result
++	  assign ncsi_priv to another address is a disaster
++	  but in reality phydev->priv and ncsi_priv are the same
++	*/
++	if( ncsi_priv != phydev->priv ){
++		struct ncsi *ncsi_old = ncsi_priv;
++		ncsi_priv = phydev->priv;
++		ncsi_priv->parent = phydev;
++		copy_ncsi(ncsi_priv, ncsi_old);
++		printf("priv ptr changed!\n");
++	}
+ 
+ 	return 0;
+ }
+ 
+ int ncsi_shutdown(struct phy_device *phydev)
+ {
+-	printf("NCSI: Disabling package %d\n", ncsi_priv->current_package);
+-	ncsi_send_dp(ncsi_priv->current_package);
++	if( ncsi_priv ){
++		printf("NCSI: Disabling package %d\n", ncsi_priv->current_package);
++		ncsi_send_dp(ncsi_priv->current_package);
++	}
+ 	return 0;
+ }
+ 
+-- 
+2.17.1
+

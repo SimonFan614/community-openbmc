@@ -1,0 +1,47 @@
+From 848c4281b9b9245d1caeba3b3151e7f3b5e30dc9 Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@edge-core.com>
+Date: Fri, 13 Aug 2021 13:22:31 +0800
+Subject: [PATCH] 1. remove check action for vout_mode. 2. Retry to get
+ vout_mode if read fail.
+
+---
+ drivers/hwmon/pmbus/pmbus_core.c | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/hwmon/pmbus/pmbus_core.c b/drivers/hwmon/pmbus/pmbus_core.c
+index 898d7378f4f8..250a75fc631b 100644
+--- a/drivers/hwmon/pmbus/pmbus_core.c
++++ b/drivers/hwmon/pmbus/pmbus_core.c
+@@ -20,6 +20,7 @@
+ #include <linux/pmbus.h>
+ #include <linux/regulator/driver.h>
+ #include <linux/regulator/machine.h>
++#include <linux/delay.h>
+ #include "pmbus.h"
+ 
+ /*
+@@ -2078,9 +2079,19 @@ static int pmbus_identify_common(struct i2c_client *client,
+ {
+-	int vout_mode = -1;
++	int vout_mode = -1, i = 0;
+ 
+-	if (pmbus_check_byte_register(client, page, PMBUS_VOUT_MODE))
++	/* we remove pmbus_check_byte_register(), because original code flow will read twice to get vout_mode data
++	   For UCD90320, first time fail rate is about 1/1000, second time fail rate is about 1/10;*/
++	for( i=0; i<5; i++ ){
+ 		vout_mode = _pmbus_read_byte_data(client, page,
+ 						  PMBUS_VOUT_MODE);
++		if( (vout_mode >= 0) && (vout_mode != 0xff) ){
++			break;
++		}
++		udelay(200);
++	}
++	if( i ){
++		printk("page %d retries %d times to recover vout_mode!\n", page, i);
++	}
+ 	if (vout_mode >= 0 && vout_mode != 0xff) {
+ 		/*
+ 		 * Not all chips support the VOUT_MODE command,
+-- 
+2.20.1
+

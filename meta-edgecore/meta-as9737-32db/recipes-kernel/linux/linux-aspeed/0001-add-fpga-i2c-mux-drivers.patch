@@ -1,0 +1,42 @@
+From 65ee48859ce2e3e37db5a841512b49821c9775a0 Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@edge-core.com>
+Date: Tue, 23 Feb 2021 17:07:54 +0800
+Subject: [PATCH] add cpu cpld hwmon drivers
+
+---
+ drivers/hwmon/Kconfig        | 6 ++++++
+ drivers/hwmon/Makefile       |  1 +
+ 2 files changed, 7 insertions(+)
+
+diff --git a/drivers/hwmon/Kconfig b/drivers/hwmon/Kconfig
+index e244a7901392..c1fdb8ec9dae 100644
+--- a/drivers/hwmon/Kconfig
++++ b/drivers/hwmon/Kconfig
+@@ -1950,6 +1950,12 @@ config SENSORS_XGENE
+ 	  If you say yes here you get support for the temperature
+ 	  and power sensors for APM X-Gene SoC.
+ 
++config I2C_MUX_EC_FPGA_MUX
++	tristate "Edge-corE FPGA simulate I2C Mux/switches"
++	depends on GPIOLIB || COMPILE_TEST
++	help
++	  If you say yes here you get support for the EDGE-CORE FPGA I2C MUX.
++
+ if ACPI
+ 
+ comment "ACPI drivers"
+diff --git a/drivers/hwmon/Makefile b/drivers/hwmon/Makefile
+index 1c7ab361adc7..205eeaf421eb 100644
+--- a/drivers/hwmon/Makefile
++++ b/drivers/hwmon/Makefile
+@@ -179,6 +179,7 @@ obj-$(CONFIG_SENSORS_W83L786NG)	+= w83l786ng.o
+ obj-$(CONFIG_SENSORS_WM831X)	+= wm831x-hwmon.o
+ obj-$(CONFIG_SENSORS_WM8350)	+= wm8350-hwmon.o
+ obj-$(CONFIG_SENSORS_XGENE)	+= xgene-hwmon.o
++obj-$(CONFIG_I2C_MUX_EC_FPGA_MUX) += ec_fpga_mux.o
+ 
+ obj-$(CONFIG_SENSORS_OCC)	+= occ/
+ obj-$(CONFIG_PMBUS)		+= pmbus/
+-- 
+2.20.1
+

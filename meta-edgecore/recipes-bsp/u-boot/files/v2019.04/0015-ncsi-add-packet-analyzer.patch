@@ -1,0 +1,38 @@
+From f86807b6420d67c69692e6eeb93a85e022b821fc Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@accton.com>
+Date: Tue, 21 Oct 2025 14:49:01 +0800
+Subject: [PATCH] ncsi add packet analyzer
+
+---
+ drivers/net/phy/ncsi.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/net/phy/ncsi.c b/drivers/net/phy/ncsi.c
+index d27c86f0cd..4e46107767 100644
+--- a/drivers/net/phy/ncsi.c
++++ b/drivers/net/phy/ncsi.c
+@@ -567,6 +567,9 @@ static int ncsi_send_command(unsigned int np, unsigned int nc, unsigned int cmd,
+ 	/* frame header, packet header, payload, checksum */
+ 	final_len = eth_hdr_size + sizeof(struct ncsi_cmd_pkt_hdr) + len + 4;
+ 
++	printf("ncsi -> np:%d, nc:%d, channel:%x, id:%d, type:%x\n",
++	    np, nc, hdr->channel, hdr->id, cmd);
++
+ 	net_send_packet(start, final_len);
+ 	free(start);
+ 	return 0;
+@@ -650,6 +653,11 @@ void ncsi_receive(struct ethernet_hdr *et, struct ip_udp_hdr *ip,
+ 		goto out;
+ 	}
+ 
++	printf("ncsi <- id:%d, type:%x, chan:%x, np:%d, nc:%d, code:%x, reason:%x, pend_req:%d\n",
++	    nh->common.id, nh->common.type,  nh->common.channel,
++	    NCSI_PACKAGE_INDEX(nh->common.channel), NCSI_CHANNEL_INDEX(nh->common.channel),
++	    nh->code, nh->reason, ncsi_priv->pending_requests);
++
+ 	if (nh->common.type == NCSI_PKT_AEN)
+ 		return ncsi_handle_aen(ip, len);
+ 
+-- 
+2.17.1
+

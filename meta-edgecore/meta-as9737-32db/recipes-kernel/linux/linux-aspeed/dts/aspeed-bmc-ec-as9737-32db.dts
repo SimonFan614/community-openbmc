@@ -1,0 +1,349 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Copyright (c) 2020 Accton Inc.
+
+/dts-v1/;
+
+#include "aspeed-g6.dtsi"
+#include <dt-bindings/gpio/aspeed-gpio.h>
+#include <dt-bindings/i2c/i2c.h>
+
+/ {
+	model = "as9737-32db-Ast2600 BMC";
+	compatible = "edge-core,as9737-32db-bmc", "aspeed,ast2600";
+
+	chosen {
+		stdout-path = &uart5;
+		bootargs = "console=ttyS4,115200n8 root=/dev/ram rw";
+	};
+
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x80000000 0x80000000>;
+	};
+
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		flash_memory: region@ba000000 {
+			no-map;
+			reg = <0xb8000000 0x4000000>; /* 64M */
+		};
+
+		vga_memory: region@bf000000 {
+			no-map;
+			reg = <0xbf000000 0x01000000>;	/* 16M */
+		};
+	};
+};
+
+&fmc {
+	status = "okay";
+	flash@0 {
+		status = "okay";
+		m25p,fast-read;
+		label = "bmc";
+
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			u-boot@0 {
+				reg = <0x0 0xe0000>; // 896KB
+				label = "u-boot";
+			};
+
+			u-boot-env@e0000 {
+				reg = <0xe0000 0x20000>; // 128KB
+				label = "u-boot-env";
+			};
+
+			kernel@100000 {
+				reg = <0x100000 0x900000>; // 9 MB
+				label = "kernel";
+			};
+
+			rofs@a00000 {
+				reg = <0xa00000 0x1c00000>; // 28MB
+				label = "rofs";
+			};
+
+			rwfs@2600000 {
+				reg = <0x2600000 0x200000>; // 2MB
+				label = "rwfs";
+			};
+		};
+	};
+
+	flash@1 {
+		status = "okay";
+		m25p,fast-read;
+		label = "alt-bmc";
+		spi-max-frequency = <50000000>;
+	};
+};
+
+&spi2 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_spi2_default>;
+
+	flash@0 {
+		status = "okay";
+		wait-ready = "okay";
+		m25p,fast-read;
+		label = "spi2.0";
+		spi-max-frequency = <50000000>;
+	};
+};
+
+&i2c0 {
+	status = "okay";
+
+	sys_fpga@60 {
+		compatible = "edge-core,ec_system_fpga";
+		reg = <0x60>;
+	};
+
+	i2c-mux@70 {
+		compatible = "ec,ec_fpga_mux";
+		i2c-mux-idle-disconnect;
+		reg = <0x70>;
+
+		i2c0_70_chan0: i2c@0 {
+			reg = <0>;
+
+			eeprom@56 {
+				compatible = "atmel,24c02";
+				reg = <0x56>;
+			};
+		};
+
+		i2c0_70_chan1: i2c@1 {
+			reg = <1>;
+
+			psu0@58 {
+				compatible = "ec-common-psu";
+				reg = <0x58>;
+			};
+
+			eepromPSU0@50 {
+				compatible = "atmel,24c02";
+				reg = <0x50>;
+			};
+
+		};
+
+		i2c0_70_chan2: i2c@2 {
+			reg = <2>;
+
+			psu1@59 {
+				compatible = "ec-common-psu";
+				reg = <0x59>;
+			};
+
+			eepromPSU@51 {
+				compatible = "atmel,24c02";
+				reg = <0x51>;
+			};
+
+		};
+
+		i2c0_70_chan3: i2c@3 {
+			reg = <3>;
+
+			lm75@48 {
+				compatible = "nxp,lm75";
+				reg = <0x48>;
+			};
+
+			lm75@49 {
+				compatible = "nxp,lm75";
+				reg = <0x49>;
+			};
+
+			lm75@4a {
+				compatible = "nxp,lm75";
+				reg = <0x4a>;
+			};
+
+			lm75@4f {
+				compatible = "nxp,lm75";
+				reg = <0x4f>;
+			};
+
+			lm75@4c {
+				compatible = "nxp,lm75";
+				reg = <0x4c>;
+			};
+		};
+
+		i2c0_70_chan4: i2c@4 {
+			reg = <4>;
+
+			ucd9090@34 {
+				compatible = "ti,ucd9090";
+				reg = <0x34>;
+			};
+
+		};
+
+		i2c0_70_chan5: i2c@5 {
+			reg = <5>;
+
+			fan_cpld@66 {
+				compatible = "edge-core,ec_fan_cpld2";
+				reg = <0x66>;
+			};
+
+		};
+
+		i2c0_70_chan6: i2c@6 {
+			reg = <6>;
+
+			tps53679@62 {
+				compatible = "ti,tps53679";
+				reg = <0x62>;
+			};
+
+			tps53679@63 {
+				compatible = "ti,tps53679";
+				reg = <0x63>;
+			};
+
+			tps53679@66 {
+				compatible = "ti,tps53679";
+				reg = <0x66>;
+			};
+
+		};
+
+	};
+};
+
+&i2c1 {
+	status = "okay";
+
+	sys_cpld_led@59 {
+		compatible = "edge-core,ec_system_led";
+		reg = <0x59>;
+
+		psu1@0 {
+			reg = <0x2a>;
+			led-bit = /bits/ 8 <5>;
+			led-mask = /bits/ 8 <7>;
+			read-only;
+		};
+		psu2@1 {
+			reg = <0x2a>;
+			led-bit = /bits/ 8 <2>;
+			led-mask = /bits/ 8 <7>;
+			read-only;
+		};
+		fan@2 {
+			reg = <0x2b>;
+			led-bit = /bits/ 8 <5>;
+			led-mask = /bits/ 8 <7>;
+			read-only;
+		};
+		identify@3 {
+			reg = <0x30>;
+			led-bit = /bits/ 8 <6>;
+			led-mask = /bits/ 8 <3>;
+			no-timer;
+		};
+		diag@4 {
+			reg = <0x31>;
+			led-bit = /bits/ 8 <0>;
+			led-mask = /bits/ 8 <3>;
+			shutdown-color = /bits/ 8 <2>;
+		};
+	};
+};
+
+&i2c3 {
+	status = "okay";
+
+	com_e@21 {
+		compatible = "edge-core,ec_driver";
+		reg = <0x21>;
+	};
+
+	eeprom@50 {
+		compatible = "giantec,gt24c32a", "atmel,24c32";
+		reg = <0x50>;
+		pagesize = <32>;
+	};
+};
+
+&i2c8 {
+	status = "okay";
+
+	eeprom@50 {
+		compatible = "atmel,24c512";
+		reg = <0x50>;
+	};
+};
+
+&mac2 {
+	status = "okay";
+
+	use-ncsi;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_rmii3_default>;
+	clocks = <&syscon ASPEED_CLK_GATE_MAC3CLK>;
+	clock-names = "MACCLK", "RCLK";
+	phy-mode = "rmii";
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&uart2 {
+	status = "okay";
+};
+
+&uart5 {
+	status = "okay";
+};
+
+&lpc_ctrl {
+	status = "okay";
+};
+
+&lpc_snoop {
+	status = "okay";
+	snoop-ports = <0x80>;
+};
+
+&wdt1 {
+	status = "okay";
+};
+
+&wdt2 {
+	status = "okay";
+};
+
+&pinctrl {
+	/* Hog these as no driver is probed for the entire LPC block */
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_lpc_default>,
+		    <&pinctrl_lsirq_default>;
+};
+
+&kcs3 {
+	// BMC KCS channel 3
+	status = "okay";
+	kcs_addr = <0xca2>;
+};
+
+&vhub {
+	status = "okay";
+};
+
+&jtag1 {
+	status = "okay";
+};

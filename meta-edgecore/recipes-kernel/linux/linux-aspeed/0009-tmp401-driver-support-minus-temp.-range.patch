@@ -1,0 +1,24 @@
+From debee137f4a1639301913d2f61c0736cfd3b4e38 Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@edge-core.com>
+Date: Mon, 28 Mar 2022 10:21:13 +0800
+Subject: [PATCH] tmp401 driver support minus temp. range
+
+---
+ drivers/hwmon/tmp401.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/hwmon/tmp401.c b/drivers/hwmon/tmp401.c
+index fa361d9949db..751d1fd4e2dc 100644
+--- a/drivers/hwmon/tmp401.c
++++ b/drivers/hwmon/tmp401.c
+@@ -605,6 +605,7 @@ static int tmp401_init_client(struct tmp401_data *data,
+ 
+ 	config_orig = config;
+ 	config &= ~TMP401_CONFIG_SHUTDOWN;
++	config |= TMP401_CONFIG_RANGE;
+ 
+ 	if (config != config_orig)
+ 		status = i2c_smbus_write_byte_data(client,
+-- 
+2.20.1
+

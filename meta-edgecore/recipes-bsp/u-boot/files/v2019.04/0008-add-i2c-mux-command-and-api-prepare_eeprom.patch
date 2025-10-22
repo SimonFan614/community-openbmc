@@ -1,0 +1,175 @@
+From 9f4944f4ae5e8caf0a3fe8f7b335e63b9a6f0c8e Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@edge-core.com>
+Date: Thu, 4 Feb 2021 16:36:06 +0800
+Subject: [PATCH] add i2c/mux command and api prepare_eeprom()
+
+---
+ cmd/i2c.c               | 126 ++++++++++++++++++++++++++++++++++++++++
+ include/ec_i2c_config.h |   3 +
+ 2 files changed, 129 insertions(+)
+ create mode 100644 include/ec_i2c_config.h
+
+diff --git a/cmd/i2c.c b/cmd/i2c.c
+index 09c4ba9a1c..863a55ea9a 100644
+--- a/cmd/i2c.c
++++ b/cmd/i2c.c
+@@ -78,6 +78,8 @@
+ #include <asm/byteorder.h>
+ #include <linux/compiler.h>
+ 
++int ec_i2c_mux_chan(uchar chip, int channel);
++
+ /* Display values from last command.
+  * Memory modify remembered values are different from display memory.
+  */
+@@ -1944,6 +1946,122 @@ static int do_i2c_reset(cmd_tbl_t * cmdtp, int flag, int argc, char * const argv
+ 	return 0;
+ }
+ 
++/**
++ * do_i2c_mux() - Handle the "i2c mux" command-line command
++ * @cmdtp:     Command data struct pointer
++ * @flag:      Command flag
++ * @argc:      Command-line argument count
++ * @argv:      Array of command-line arguments
++ *
++ * Returns zero on success, CMD_RET_USAGE in case of misuse and negative
++ * on error.
++ *
++ * Syntax:
++ *     i2c mux {i2c_chip} {channel}
++ */
++static int do_i2c_mux ( cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
++{
++	uint    chip;
++	uint    chan;
++	int ret;
++
++	chip   = i2c_dp_last_chip;
++	chan   = i2c_dp_last_addr;
++
++	if (argc < 2)
++		return CMD_RET_USAGE;
++
++	if ((flag & CMD_FLAG_REPEAT) == 0) {
++		chip = simple_strtoul(argv[1], NULL, 16);
++
++		if( argc == 3 ){
++			chan = simple_strtoul(argv[2], NULL, 10);
++			if( chan >= 8 ){
++				return CMD_RET_USAGE;
++			}
++		}
++		else if( chan < 0 ){
++			chan = -1;
++		}
++	}
++
++	ret = ec_i2c_mux_chan(chip, chan);
++	if (ret)
++		return i2c_report_err(ret, I2C_ERR_WRITE);
++
++	i2c_dp_last_chip   = chip;
++	i2c_dp_last_addr   = chan;
++
++	return 0;
++}
++
++int ec_i2c_mux_chan(uchar chip, int channel)
++{
++	uchar   byte = 0;
++	int ret;
++	if( channel >= 0 ){
++		byte = 1 << channel;
++	}
++
++#ifdef CONFIG_DM_I2C
++	struct udevice *dev;
++	struct dm_i2c_chip *i2c_chip;
++
++	ret = i2c_get_cur_bus_chip(chip, &dev);
++	if (!ret)
++		ret = i2c_set_chip_offset_len(dev, 0);
++	if (ret)
++		return ret;
++
++	i2c_chip = dev_get_parent_platdata(dev);
++	if (!i2c_chip)
++		return ret;
++
++	i2c_chip->flags &= ~DM_I2C_CHIP_WR_ADDRESS;
++	ret = dm_i2c_write(dev, 0, &byte, 1);
++#else
++	ret = i2c_write(chip, 0, 0, &byte, 1);
++#endif
++	return ret;
++}
++
++void ec_i2c_init(void)
++{
++#if defined(CONFIG_DM_I2C)
++	struct udevice *bus;
++
++	if (i2c_get_cur_bus(&bus))
++		return CMD_RET_FAILURE;
++	if (i2c_deblock(bus)) {
++		printf("Error: Not supported by the driver\n");
++		return CMD_RET_FAILURE;
++	}
++#elif defined(CONFIG_SYS_I2C)
++	i2c_init(I2C_ADAP->speed, I2C_ADAP->slaveaddr);
++#else
++	i2c_init(CONFIG_SYS_I2C_SPEED, CONFIG_SYS_I2C_SLAVE);
++#endif
++	return;
++}
++
++void ec_i2c_set_bus_num(int bus_no)
++{
++	int ret;
++#ifdef CONFIG_DM_I2C
++	ret = cmd_i2c_set_bus_num(bus_no);
++#else
++	ret = i2c_set_bus_num(bus_no);
++#endif
++	if (ret)
++		printf("Failure changing bus number (%d)\n", ret);
++}
++
++#ifdef CONFIG_SYS_I2C_EEPROM_ADDR
++int prepare_eeprom(void)
++{
++}
++#endif
++
+ static cmd_tbl_t cmd_i2c_sub[] = {
+ #if defined(CONFIG_SYS_I2C) || defined(CONFIG_DM_I2C)
+ 	U_BOOT_CMD_MKENT(bus, 1, 1, do_i2c_show_bus, "", ""),
+@@ -1969,6 +2087,7 @@ static cmd_tbl_t cmd_i2c_sub[] = {
+ 	U_BOOT_CMD_MKENT(olen, 2, 1, do_i2c_olen, "", ""),
+ #endif
+ 	U_BOOT_CMD_MKENT(reset, 0, 1, do_i2c_reset, "", ""),
++	U_BOOT_CMD_MKENT(mux, 1, 1, do_i2c_mux, "", ""),
+ #if defined(CONFIG_CMD_SDRAM)
+ 	U_BOOT_CMD_MKENT(sdram, 1, 1, do_sdram, "", ""),
+ #endif
+@@ -2047,6 +2166,7 @@ static char i2c_help_text[] =
+ 	"i2c olen chip [offset_length] - set or get chip offset length\n"
+ #endif
+ 	"i2c reset - re-init the I2C Controller\n"
++	"i2c mux chip [channel] - switch mux channel, none to clear  \n"
+ #if defined(CONFIG_CMD_SDRAM)
+ 	"i2c sdram chip - print SDRAM configuration information\n"
+ #endif
+diff --git a/include/ec_i2c_config.h b/include/ec_i2c_config.h
+new file mode 100644
+index 0000000000..22621af132
+--- /dev/null
++++ b/include/ec_i2c_config.h
+@@ -0,0 +1,3 @@
++#ifdef CONFIG_SYS_I2C_EEPROM_ADDR
++int prepare_eeprom(void);
++#endif
+-- 
+2.17.1
+

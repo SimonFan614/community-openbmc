@@ -1,0 +1,163 @@
+From 6884d170328768501f03cd5974b9d6a984663225 Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@accton.com>
+Date: Tue, 21 Oct 2025 15:03:19 +0800
+Subject: [PATCH] ncsi use kernel initiator
+
+---
+ drivers/net/phy/ncsi.c | 55 +++++++++++++++++++-----------------------
+ 1 file changed, 25 insertions(+), 30 deletions(-)
+
+diff --git a/drivers/net/phy/ncsi.c b/drivers/net/phy/ncsi.c
+index a7649f8dcc..354a6c0f98 100644
+--- a/drivers/net/phy/ncsi.c
++++ b/drivers/net/phy/ncsi.c
+@@ -32,6 +32,7 @@
+ #define NCSI_CAP_VLAN_MASK	0x07
+ 
+ #define NCSI_PROTO_SUCCESS_FLAG		1
++#define NCSI_PROTO_SHUTDOWN_FLAG	2
+ 
+ static void ncsi_send_ebf(unsigned int np, unsigned int nc);
+ static void ncsi_send_ae(unsigned int np, unsigned int nc);
+@@ -71,7 +72,6 @@ struct ncsi_package {
+ 
+ struct ncsi {
+ 	enum {
+-		NCSI_PROBE_PACKAGE_SP,
+ 		NCSI_PROBE_PACKAGE_DP,
+ 		NCSI_PROBE_CHANNEL_SP,
+ 		NCSI_PROBE_CHANNEL,
+@@ -123,7 +123,7 @@ static void set_ncsi_initial_val(void)
+ 	ncsi_priv->n_packages = 0;
+ 
+ 	/* Set initial probe state */
+-	ncsi_priv->state = NCSI_PROBE_PACKAGE_SP;
++	ncsi_priv->state = NCSI_PROBE_PACKAGE_DP;
+ 
+ 	/* No active package/channel yet */
+ 	ncsi_priv->current_package = NCSI_PACKAGE_MAX;
+@@ -430,7 +430,7 @@ static void ncsi_rsp_cis(struct ncsi_rsp_pkt *pkt)
+ 	ncsi_send_gls(np, nc);
+ }
+ 
+-static void ncsi_rsp_dp(struct ncsi_rsp_pkt *pkt)
++static void ncsi_rsp_sp(struct ncsi_rsp_pkt *pkt)
+ {
+ 	struct ncsi_rsp_pkt_hdr *rsp = (struct ncsi_rsp_pkt_hdr *)pkt;
+ 	unsigned int np;
+@@ -444,13 +444,17 @@ static void ncsi_rsp_dp(struct ncsi_rsp_pkt *pkt)
+ 		debug("NCSI: DP response from unknown package %d\n", np);
+ }
+ 
+-static void ncsi_rsp_sp(struct ncsi_rsp_pkt *pkt)
++static void ncsi_rsp_dp(struct ncsi_rsp_pkt *pkt)
+ {
+ 	struct ncsi_rsp_pkt_hdr *rsp = (struct ncsi_rsp_pkt_hdr *)pkt;
+ 	unsigned int np;
+ 
+ 	printf("%s\n", __func__);
+ 
++	if( ncsi_priv->flags & NCSI_PROTO_SHUTDOWN_FLAG ){
++		return;
++	}
++
+ 	np = NCSI_PACKAGE_INDEX(rsp->common.channel);
+ 
+ 	if (np < ncsi_priv->n_packages) {
+@@ -480,30 +484,20 @@ static void ncsi_update_state(struct ncsi_rsp_pkt_hdr *nh)
+ 	bool timeout = !nh;
+ 	int np, nc;
+ 
++	if( ncsi_priv->flags & NCSI_PROTO_SHUTDOWN_FLAG ){
++		ncsi_priv->flags &= ~(NCSI_PROTO_SHUTDOWN_FLAG | NCSI_PROTO_SUCCESS_FLAG);
++		set_ncsi_initial_val();
++		return;
++	}
++
+ 	switch (ncsi_priv->state) {
+-	case NCSI_PROBE_PACKAGE_SP:
+-		if (!timeout &&
+-		    ncsi_priv->current_package + 1 < NCSI_PACKAGE_MAX) {
+-			ncsi_priv->current_package++;
+-		} else {
+-			ncsi_priv->state = NCSI_PROBE_PACKAGE_DP;
+-			ncsi_priv->current_package = 0;
+-		}
+-		return ncsi_probe_packages();
+ 	case NCSI_PROBE_PACKAGE_DP:
+-		if (ncsi_priv->current_package + 1 < ncsi_priv->n_packages &&
+-		    !timeout) {
++		if (timeout &&
++		    ncsi_priv->current_package + 1 < NCSI_PACKAGE_MAX) {
+ 			ncsi_priv->current_package++;
+ 		} else {
+-			if (!ncsi_priv->n_packages) {
+-				printf("NCSI: no packages found\n");
+-				net_set_state(NETLOOP_FAIL);
+-				return;
+-			}
+-			printf("NCSI: probing channels\n");
+ 			ncsi_priv->state = NCSI_PROBE_CHANNEL_SP;
+ 			ncsi_priv->current_package = 0;
+-			ncsi_priv->current_channel = 0;
+ 		}
+ 		return ncsi_probe_packages();
+ 	case NCSI_PROBE_CHANNEL_SP:
+@@ -516,8 +510,12 @@ static void ncsi_update_state(struct ncsi_rsp_pkt_hdr *nh)
+ 		net_set_state(NETLOOP_FAIL);
+ 		break;
+ 	case NCSI_PROBE_CHANNEL:
++		if (timeout &&
++		    ncsi_priv->current_channel + 1 < NCSI_CHANNEL_MAX) {
++			ncsi_priv->current_channel++;
++		}
+ 		// TODO only does package 0 for now
+-		if (ncsi_priv->pending_requests == 0) {
++		else if (ncsi_priv->pending_requests == 0) {
+ 			np = ncsi_priv->current_package;
+ 			nc = ncsi_priv->current_channel;
+ 
+@@ -673,7 +671,6 @@ static void ncsi_handle_aen(struct ip_udp_hdr *ip, unsigned int len)
+ 	  otherwise we simply send NCSI/GLS packet(get link status)
+ 	*/
+ 	if( ncsi_priv->state != NCSI_CONFIG){
+-		ncsi_initiator_package(0);
+ 		ncsi_initiator_package(1);
+ 	}
+ 	else{
+@@ -858,14 +855,9 @@ void ncsi_probe_packages(void)
+ 	unsigned int np, nc;
+ 
+ 	switch (ncsi_priv->state) {
+-	case NCSI_PROBE_PACKAGE_SP:
++	case NCSI_PROBE_PACKAGE_DP:
+ 		if (ncsi_priv->current_package == NCSI_PACKAGE_MAX)
+ 			ncsi_priv->current_package = 0;
+-		printf("%s: NCSI_PROBE_PACKAGE_SP current_package %d\n",
+-				__func__, ncsi_priv->current_package);
+-		ncsi_send_sp(ncsi_priv->current_package);
+-		break;
+-	case NCSI_PROBE_PACKAGE_DP:
+ 		printf("%s: NCSI_PROBE_PACKAGE_DP current_package %d\n",
+ 				__func__, ncsi_priv->current_package);
+ 		ncsi_send_dp(ncsi_priv->current_package);
+@@ -878,6 +870,8 @@ void ncsi_probe_packages(void)
+ 			printf("NCSI: no packages discovered, configuration not possible\n");
+ 		break;
+ 	case NCSI_PROBE_CHANNEL:
++		if (ncsi_priv->current_channel == NCSI_CHANNEL_MAX)
++			ncsi_priv->current_channel = 0;
+ 		printf("%s NCSI_PROBE_CHANNEL package %d channel %d\n",
+ 				__func__,
+ 				ncsi_priv->current_package,
+@@ -1011,6 +1005,7 @@ int ncsi_shutdown(struct phy_device *phydev)
+ {
+ 	if( ncsi_priv ){
+ 		printf("NCSI: Disabling package %d\n", ncsi_priv->current_package);
++		ncsi_priv->flags |= NCSI_PROTO_SHUTDOWN_FLAG;
+ 		ncsi_send_dp(ncsi_priv->current_package);
+ 	}
+ 	return 0;
+-- 
+2.17.1
+

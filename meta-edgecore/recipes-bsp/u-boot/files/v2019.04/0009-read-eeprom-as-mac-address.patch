@@ -1,0 +1,53 @@
+From 083e3842020ddacfb595a441b78e5dbd2f576cdf Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@edge-core.com>
+Date: Thu, 4 Feb 2021 16:42:53 +0800
+Subject: [PATCH] read eeprom as mac address
+
+---
+ net/eth-uclass.c | 21 ++++++++++++++++++++-
+ 1 file changed, 20 insertions(+), 1 deletion(-)
+
+diff --git a/net/eth-uclass.c b/net/eth-uclass.c
+index a7f8792710..2c3c591744 100644
+--- a/net/eth-uclass.c
++++ b/net/eth-uclass.c
+@@ -12,6 +12,8 @@
+ #include <dm/device-internal.h>
+ #include <dm/uclass-internal.h>
+ #include "eth_internal.h"
++#include <ec_i2c_config.h>
++#include <asm/arch/fru_parsing.h>
+ 
+ DECLARE_GLOBAL_DATA_PTR;
+ 
+@@ -518,7 +520,26 @@ static int eth_post_probe(struct udevice *dev)
+ 		       dev->name);
+ 	} else if (is_zero_ethaddr(pdata->enetaddr) ||
+ 		   !is_valid_ethaddr(pdata->enetaddr)) {
+-#ifdef CONFIG_NET_RANDOM_ETHADDR
++#ifdef CONFIG_SYS_I2C_EEPROM_ADDR
++		prepare_eeprom();
++		memcpy(env_enetaddr, get_mac_addr_from_eeprom(), ARP_HLEN);
++		if (is_valid_ethaddr(env_enetaddr) ) {
++			eth_env_set_enetaddr_by_index("eth", dev->seq, env_enetaddr);
++			env_save();
++			memcpy(pdata->enetaddr, env_enetaddr, ARP_HLEN);
++			printf("\nGet MAC from eeprom(0x%x), mac: %pM\n", CONFIG_SYS_I2C_EEPROM_ADDR, env_enetaddr);
++		}
++		else{
++			printf("\nWarning: Invalid Mac from eeprom(0x%x, offset:%x) - %pM\n", CONFIG_SYS_I2C_EEPROM_ADDR, CONFIG_I2C_MAC_OFFSET, env_enetaddr);
++  #ifdef CONFIG_NET_RANDOM_ETHADDR
++			net_random_ethaddr(pdata->enetaddr);
++			printf("\nWarning: %s (eth%d) using random MAC address - %pM\n",
++			    dev->name, dev->seq, pdata->enetaddr);
++  #else
++			printf("\nWarning: eeprom mac addr is invalid - %pM\n", env_enetaddr);
++  #endif
++		}
++#elif CONFIG_NET_RANDOM_ETHADDR
+ 		net_random_ethaddr(pdata->enetaddr);
+ 		printf("\nWarning: %s (eth%d) using random MAC address - %pM\n",
+ 		       dev->name, dev->seq, pdata->enetaddr);
+-- 
+2.17.1
+

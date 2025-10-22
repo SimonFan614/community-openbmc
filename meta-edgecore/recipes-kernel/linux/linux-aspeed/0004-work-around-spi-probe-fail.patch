@@ -1,0 +1,38 @@
+From 8aa83065f28849542f75ce25cca32660ce429ad1 Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@edge-core.com>
+Date: Mon, 29 Nov 2021 10:55:52 +0800
+Subject: [PATCH] work around spi probe fail
+
+---
+ drivers/mtd/spi-nor/aspeed-smc.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/mtd/spi-nor/aspeed-smc.c b/drivers/mtd/spi-nor/aspeed-smc.c
+index 0805dcab8cb1..db2b10d4f7a2 100644
+--- a/drivers/mtd/spi-nor/aspeed-smc.c
++++ b/drivers/mtd/spi-nor/aspeed-smc.c
+@@ -1236,6 +1236,7 @@ static int aspeed_smc_setup_flash(struct aspeed_smc_controller *controller,
+ 	struct device_node *child;
+ 	unsigned int cs;
+ 	int ret = -ENODEV;
++	int retrytimes=100;
+ 
+ 	for_each_available_child_of_node(np, child) {
+ 		struct aspeed_smc_chip *chip;
+@@ -1306,6 +1307,13 @@ static int aspeed_smc_setup_flash(struct aspeed_smc_controller *controller,
+ 		 * by of property.
+ 		 */
+ 		ret = spi_nor_scan(nor, NULL, &hwcaps);
++		// In case of BMC's secnodary flash scan failure, do retry
++		if((!strcmp(dev_name(nor->dev), "1e620000.spi"))&&(cs==1)) {
++			while (ret&&retrytimes>0) {
++				dev_info(dev, "Get ErrCode=%d, do rescan:%d\n", ret, --retrytimes);
++				ret = spi_nor_scan(nor, NULL, &hwcaps);
++			}
++		}
+ 		if (ret)
+ 			break;
+ 
+-- 
+2.20.1
+

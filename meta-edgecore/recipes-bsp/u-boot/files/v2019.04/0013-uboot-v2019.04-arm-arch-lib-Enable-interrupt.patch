@@ -1,0 +1,117 @@
+From a57a63bead6773552d716af7d9a7d63a85bef84c Mon Sep 17 00:00:00 2001
+From: neal_chen <neal_chen@accton.com>
+Date: Fri, 7 May 2021 16:22:01 +0800
+Subject: [PATCH] uboot: v2019.04: arm: arch: lib: Enable interrupt
+
+---
+ Kconfig                | 15 +++++++++++++++
+ arch/arm/lib/stack.c   |  9 +++++++++
+ arch/arm/lib/vectors.S | 31 ++++++++++++++++++++++++++++---
+ 3 files changed, 52 insertions(+), 3 deletions(-)
+
+diff --git a/Kconfig b/Kconfig
+index 68cc2d97b4..78cd6995db 100644
+--- a/Kconfig
++++ b/Kconfig
+@@ -239,6 +239,21 @@ config BUILD_TARGET
+ 	  special image will be automatically built upon calling
+ 	  make / buildman.
+ 
++config USE_IRQ
++	bool "Use interrupts"
++	default n
++
++config STACKSIZE_IRQ
++	depends on USE_IRQ
++	int "Size for IRQ stack (only if USE_IRQ enabled)"
++	default 16384
++
++config STACKSIZE_FIQ
++	depends on USE_IRQ
++	int "Size for FIQ stack (only if USE_IRQ enabled)"
++	default 16384
++
++
+ endmenu		# General setup
+ 
+ menu "Boot images"
+diff --git a/arch/arm/lib/stack.c b/arch/arm/lib/stack.c
+index c89a219dd2..2fbc01eb8a 100644
+--- a/arch/arm/lib/stack.c
++++ b/arch/arm/lib/stack.c
+@@ -24,6 +24,15 @@ int arch_reserve_stacks(void)
+ 	gd->irq_sp = gd->start_addr_sp;
+ 
+ # if !defined(CONFIG_ARM64)
++# ifdef CONFIG_USE_IRQ
++	gd->start_addr_sp -= (CONFIG_STACKSIZE_IRQ + CONFIG_STACKSIZE_FIQ);
++	printf("Reserving %zu Bytes for IRQ stack at: %08lx\n",
++	      CONFIG_STACKSIZE_IRQ + CONFIG_STACKSIZE_FIQ, gd->start_addr_sp);
++
++	/* 8-byte alignment for ARM ABI compliance */
++	gd->start_addr_sp &= ~0x07;
++# endif
++
+ 	/* leave 3 words for abort-stack, plus 1 for alignment */
+ 	gd->start_addr_sp -= 16;
+ # endif
+diff --git a/arch/arm/lib/vectors.S b/arch/arm/lib/vectors.S
+index 2ca6e2494a..a961044f3b 100644
+--- a/arch/arm/lib/vectors.S
++++ b/arch/arm/lib/vectors.S
+@@ -154,6 +154,18 @@ IRQ_STACK_START_IN:
+ 	.word	0x0badc0de
+ #endif
+ 
++#ifdef CONFIG_USE_IRQ
++/* IRQ stack memory (calculated at run-time) */
++.globl IRQ_STACK_START
++IRQ_STACK_START:
++	.word	0x0badc0de
++/* IRQ stack memory (calculated at run-time) */
++.globl FIQ_STACK_START
++FIQ_STACK_START:
++	.word 0x0badc0de
++#endif
++
++
+ @
+ @ IRQ stack frame.
+ @
+@@ -277,17 +289,30 @@ not_used:
+ 	bad_save_user_regs
+ 	bl	do_not_used
+ 
+-
++#ifdef CONFIG_USE_IRQ
++	.align	5
++irq:
++	get_irq_stack
++	irq_save_user_regs
++	bl	do_irq
++	irq_restore_user_regs
++	.align	5
++fiq:
++	get_fiq_stack
++	/* someone ought to write a more effective fiq_save_user_regs */
++	irq_save_user_regs
++	bl	do_fiq
++	irq_restore_user_regs
++#else
+ 	.align	5
+ irq:
+ 	get_bad_stack
+ 	bad_save_user_regs
+ 	bl	do_irq
+-
+ 	.align	5
+ fiq:
+ 	get_bad_stack
+ 	bad_save_user_regs
+ 	bl	do_fiq
+-
++#endif /* CONFIG_USE_IRQ */
+ #endif	/* CONFIG_SPL_BUILD */
+-- 
+2.17.1
+

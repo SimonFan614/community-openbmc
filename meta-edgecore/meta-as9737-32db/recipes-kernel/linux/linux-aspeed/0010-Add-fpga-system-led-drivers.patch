@@ -1,0 +1,41 @@
+From fbcfee6b2d165ada33ee7caf0d278571fdb6766c Mon Sep 17 00:00:00 2001
+From: simon_fan <simon_fan@edge-core.com>
+Date: Fri, 29 Sep 2023 05:49:53 +0000
+Subject: [PATCH] Add fpga system led drivers
+
+---
+ drivers/hwmon/Kconfig  | 5 +++++
+ drivers/hwmon/Makefile | 1 +
+ 2 files changed, 6 insertions(+)
+
+diff --git a/drivers/hwmon/Kconfig b/drivers/hwmon/Kconfig
+index e61dbfe68e72..c88d6441e7f9 100644
+--- a/drivers/hwmon/Kconfig
++++ b/drivers/hwmon/Kconfig
+@@ -1971,6 +1971,11 @@ config SENSORS_COM_E_DRV
+         help
+ 	  If you say yes here you get hardware monitoring support Edge-core COMe EC.
+ 
++config EC_CPLD_SYSTEM_LED
++	tristate "Edge-core CPLD System LEDs"
++        help
++	  If you say yes here you get leds class support EC CPLD LED control.
++
+ if ACPI
+ 
+ comment "ACPI drivers"
+diff --git a/drivers/hwmon/Makefile b/drivers/hwmon/Makefile
+index d12decff12c3..5a7c5b85bc86 100644
+--- a/drivers/hwmon/Makefile
++++ b/drivers/hwmon/Makefile
+@@ -183,6 +183,7 @@ obj-$(CONFIG_I2C_MUX_EC_FPGA_MUX) += ec_fpga_mux.o
+ obj-$(CONFIG_SENSORS_EC_FAN_CPLD) += ec_fan_cpld.o
+ obj-$(CONFIG_SENSORS_EC_SYSTEM_FPGA) += ec_system_fpga.o
+ obj-$(CONFIG_SENSORS_COM_E_DRV) += ec_com_e_drv.o
++obj-$(CONFIG_EC_CPLD_SYSTEM_LED) += ec_sysled_cpld.o
+ 
+ obj-$(CONFIG_SENSORS_OCC)	+= occ/
+ obj-$(CONFIG_PMBUS)		+= pmbus/
+-- 
+2.17.1
+

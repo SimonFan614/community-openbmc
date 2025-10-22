@@ -1,0 +1,30 @@
+From 4f2ebb3fdb042a21c0a8ee25175df84063b770ac Mon Sep 17 00:00:00 2001
+From: simon-fan <simon_fan@edge-core.com>
+Date: Fri, 17 Apr 2020 14:44:04 +0800
+Subject: [PATCH] change i2c bus drivers_autoprobe to 0
+
+---
+ drivers/base/bus.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/base/bus.c b/drivers/base/bus.c
+index 0a58e969f8b7..46fb60d69e85 100644
+--- a/drivers/base/bus.c
++++ b/drivers/base/bus.c
+@@ -819,7 +819,12 @@ int bus_register(struct bus_type *bus)
+ 
+ 	priv->subsys.kobj.kset = bus_kset;
+ 	priv->subsys.kobj.ktype = &bus_ktype;
+-	priv->drivers_autoprobe = 1;
++	if( strcmp(bus->name, "i2c") ){
++		priv->drivers_autoprobe = 1;
++	}
++	else{ /* we do not want i2c bus bind devices at boot time !! */
++		priv->drivers_autoprobe = 0;
++	}
+ 
+ 	retval = kset_register(&priv->subsys);
+ 	if (retval)
+-- 
+2.11.0
+
