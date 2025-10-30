@@ -6,9 +6,6 @@ conf/
 classes/
 recipes-*/
 
-BSP layer(s) for the following Edgecore branded servers:
-Sylvia: meta-sylvia
-
 Subsequent description applies to the distro policy for Edgecore systems only in
 conf, classes, and recipes-*, for description of the BSP layers consult the
 README files there.

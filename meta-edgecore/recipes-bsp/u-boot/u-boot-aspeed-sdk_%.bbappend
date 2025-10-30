@@ -63,7 +63,3 @@ do_uboot_prepare () {
     cp -rfv ${AST2600_FILE_DIR}/evb_ast2600a1.c ${AST2600A1_EVB_BOARD_PATH}
 }
 addtask do_uboot_prepare after do_patch before do_configure
-
-SRC_URI_append_ibm-ac-server = " file://sylvia.cfg \
-               file://0001-ast2600_dts.patch \
-              "

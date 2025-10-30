@@ -1,5 +1,3 @@
-EXTRA_IBM_LOGGING_PKGS = ""
-
 RDEPENDS_${PN}-extras_append = " phosphor-webui \
                                  opkg"
 
